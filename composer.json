@@ -1,0 +1,8 @@
+{
+  "name": "moodle/paygw_webirr",
+  "type": "moodle-plugin",
+  "require": {
+    "webirr/webirr": "^2.0"
+  }
+  
+}
