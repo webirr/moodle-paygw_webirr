@@ -1,8 +1,9 @@
-# WeBirr Moodle Plugin - Proof of concept
+# WeBirr Moodle Plugin - Proof of concept 
 
 This plugin integrates WeBirr payment gateway with Moodle, allowing for Ethiopian Birr (ETB) payments via various banking apps.
 
 **IMPORTANT: This is a proof of concept only and not ready for production use.**
+
 Features
 
 Easy integration with Moodle's payment subsystem
@@ -13,8 +14,9 @@ Support for both test and production environments
 Requirements
 
 - Moodle 3.11 or later
-- WeBirr merchant account
 - PHP 7.4 or later
+- PHP Client Library for WeBirr API 2.0.3 or later
+- WeBirr Merchant account
 
 Installation
 
