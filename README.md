@@ -1,4 +1,5 @@
-# moodle-paygw_webirr
+# WeBirr Moodle Plugin - Proof of concept
+
 This plugin integrates WeBirr payment gateway with Moodle, allowing for Ethiopian Birr (ETB) payments via various banking apps.
 
 **IMPORTANT: This is a proof of concept only and not ready for production use.**
