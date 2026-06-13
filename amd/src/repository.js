@@ -15,7 +15,7 @@ define(['core/ajax', 'core/notification'], function(Ajax, Notification) {
      */
     var getPaymentCode = function(component, paymentArea, itemId, description) {
         var request = {
-            methodname: 'paygw_webirr_get_payment_code',
+            methodname: 'paygw_webirr_get_code',
             args: {
                 component: component,
                 paymentarea: paymentArea,
@@ -35,7 +35,7 @@ define(['core/ajax', 'core/notification'], function(Ajax, Notification) {
      */
     var getPaymentStatus = function(paymentId) {
         var request = {
-            methodname: 'paygw_webirr_get_payment_status',
+            methodname: 'paygw_webirr_get_status',
             args: {
                 paymentid: paymentId
             }

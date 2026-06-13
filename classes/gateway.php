@@ -1,4 +1,3 @@
-
 <?php
 
 namespace paygw_webirr;

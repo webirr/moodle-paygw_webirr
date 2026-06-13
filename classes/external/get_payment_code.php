@@ -1,12 +1,10 @@
-// classes/external/get_payment_code.php
 <?php
 namespace paygw_webirr\external;
 
 defined('MOODLE_INTERNAL') || die();
 
 require_once($CFG->libdir . '/externallib.php');
-require_once($CFG->dirroot . '/payment/gateway/webirr/lib/WeBirrClient.php');
-require_once($CFG->dirroot . '/payment/gateway/webirr/lib/Bill.php');
+require_once($CFG->dirroot . '/payment/gateway/webirr/vendor/autoload.php');
 
 use external_api;
 use external_function_parameters;
@@ -53,6 +51,8 @@ class get_payment_code extends external_api {
         $paymentarea = $params['paymentarea'];
         $itemid = $params['itemid'];
         $description = $params['description'];
+
+        self::validate_context(\context_system::instance());
         
         // Get the payment record.
         $payable = \core_payment\helper::get_payable($component, $paymentarea, $itemid);
@@ -67,32 +67,46 @@ class get_payment_code extends external_api {
             throw new \moodle_exception('WeBirr gateway not available');
         }
         
-        $config = (array)json_decode($gateway->get_gateway_configuration());
-        
-        // Create a unique bill reference
+        $config = (array)json_decode($gateway->get_gateway_configuration(), true);
+
+        if (empty($config['apikey']) || empty($config['merchantid'])) {
+            return [
+                'success' => false,
+                'error' => 'WeBirr gateway is not configured'
+            ];
+        }
+
+        // Create a unique bill reference.
         $billreference = 'moodle_' . uniqid();
-        
-        // Create a WeBirr client
+
+        // Create a WeBirr client.
         $isTestEnv = isset($config['testmode']) ? (bool)$config['testmode'] : true;
         $client = new WeBirrClient($config['merchantid'], $config['apikey'], $isTestEnv);
-        
-        // Create a Bill object for WeBirr
+
+        $customerphone = '';
+        if (!empty($USER->phone1)) {
+            $customerphone = $USER->phone1;
+        } else if (!empty($USER->phone2)) {
+            $customerphone = $USER->phone2;
+        }
+
+        // Create a Bill object for WeBirr.
         $bill = new Bill();
-        $bill->amount = (string)$amount;
+        $bill->amount = number_format((float)$amount, 2, '.', '');
         $bill->customerCode = (string)$USER->id;
         $bill->customerName = fullname($USER);
-        $bill->time = date('Y-m-d H:i:s');
+        $bill->customerPhone = $customerphone;
+        $bill->time = date('Y-m-d H:i');
         $bill->description = $description;
         $bill->billReference = $billreference;
-        $bill->merchantID = $config['merchantid'];
-       
-        // Create a bill with WeBirr
+
+        // Create a bill with WeBirr.
         $result = $client->createBill($bill);
-        
-        // Check if bill creation was successful
-        if (!isset($result->error)) {
+
+        // Check if bill creation was successful.
+        if (empty($result->error)) {
             $paymentcode = $result->res;
-            
+
             // Create a record in the database.
             $record = new \stdClass();
             $record->userid = $USER->id;
@@ -103,7 +117,7 @@ class get_payment_code extends external_api {
             $record->wbc_code = $paymentcode;
             $record->amount = $amount;
             $record->currency = $currency;
-            $record->status = 0; // 0 = pending
+            $record->status = 0; // 0 = pending.
             $record->timecreated = time();
             $record->timemodified = time();
             

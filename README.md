@@ -1,5 +1,7 @@
 # WeBirr Moodle Plugin - Proof of concept 
 
+![WeBirr Online Checkout flow](screenshots/webirr-online-checkout-journey.jpg)
+
 This plugin integrates WeBirr payment gateway with Moodle, allowing for Ethiopian Birr (ETB) payments via various banking apps.
 
 **IMPORTANT: This is a proof of concept only and not ready for production use.**
@@ -15,12 +17,13 @@ Requirements
 
 - Moodle 3.11 or later
 - PHP 7.4 or later
-- PHP Client Library for WeBirr API 2.0.3 or later
+- PHP Client Library for WeBirr API 2.2.0 or later
 - WeBirr Merchant account
 
 Installation
 
 Place the plugin files in payment/gateway/webirr
+From payment/gateway/webirr, run `composer install --no-dev`
 Visit Site administration > Notifications to complete installation
 Configure the payment gateway with your WeBirr API key and merchant ID
 
@@ -29,6 +32,22 @@ This is an early prototype to demonstrate the integration concept. It requires f
 
 
 ## How the WeBirr Integration Works
+
+This plugin follows the WeBirr **online checkout pattern**. The browser does
+not call WeBirr directly. Moodle provides two logged-in AJAX endpoints through
+external functions:
+
+| Checkout role | Moodle method | Source | WeBirr call |
+| --- | --- | --- | --- |
+| Create checkout/payment code | `paygw_webirr_get_code` | `classes/external/get_payment_code.php` | PHP SDK `createBill(...)` |
+| Check payment status | `paygw_webirr_get_status` | `classes/external/get_payment_status.php` | PHP SDK `getPaymentStatus(...)` |
+
+These endpoints are registered in `db/services.php` with `ajax => true` and are
+called by `amd/src/repository.js` through Moodle `core/ajax`. They are crucial
+to the checkout flow because merchant API credentials stay on the Moodle server:
+the checkout endpoint creates the WeBirr bill and returns the payment code, and
+the payment status endpoint forwards a single status check to WeBirr, updates
+the local Moodle payment record, and completes delivery when payment is paid.
 
 The plugin follows this flow to process payments:
 

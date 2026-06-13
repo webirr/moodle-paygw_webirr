@@ -18,6 +18,7 @@ $string['checkpaymentstatus'] = 'Checking payment status...';
 $string['privacy:metadata:paygw_webirr'] = 'Stores information about WeBirr payments';
 $string['privacy:metadata:paygw_webirr:userid'] = 'The ID of the user making the payment';
 $string['privacy:metadata:paygw_webirr:paymentid'] = 'The ID of the payment';
+$string['privacy:metadata:paygw_webirr:billreference'] = 'The merchant bill reference created for the payment';
 $string['privacy:metadata:paygw_webirr:paymentstatus'] = 'The status of the payment';
 $string['amount'] = 'Amount';
 $string['webirr:managepayments'] = 'Manage WeBirr payments';

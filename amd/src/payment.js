@@ -6,8 +6,11 @@
  * @copyright  2025 Your Name <your.email@example.com>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-define(['jquery', 'core/str', 'core/notification', 'core/templates', 'paygw_webirr/repository'],
-function($, Str, Notification, Templates, Repository) {
+define(['jquery', 'core/notification', 'paygw_webirr/repository'],
+function($, Notification, Repository) {
+    var POLL_DELAY_MS = 5000;
+    var paymentState = {};
+
     /**
      * Initialize the payment process.
      *
@@ -15,65 +18,164 @@ function($, Str, Notification, Templates, Repository) {
      * @param {string} paymentArea
      * @param {number} itemId
      * @param {string} description
+     * @param {string} sesskey
      */
-    var init = function(component, paymentArea, itemId, description) {
+    var init = function(component, paymentArea, itemId, description, sesskey) {
+        paymentState = {
+            component: component,
+            paymentArea: paymentArea,
+            itemId: itemId,
+            sesskey: sesskey,
+            paymentId: null,
+            pollTimer: null
+        };
+
+        $('#payment-refresh-button').off('click').on('click', function() {
+            checkPaymentStatus(false);
+        });
+
+        showActions(false);
+        setStatus('info', 'Creating payment code...', true);
+
         // Get the payment code.
         Repository.getPaymentCode(component, paymentArea, itemId, description)
             .then(function(response) {
                 if (response.success) {
-                    // Display the payment code.
-                    $('#webirr-payment-code').html('<p>' + Str.get_string('paymentcode', 'paygw_webirr') + ': ' + response.paymentcode + '</p>');
-                    
-                    // Display the QR code.
-                    var qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?data=' + response.paymentcode + '&size=200x200';
-                    $('#webirr-payment-qr').html('<img src="' + qrUrl + '" alt="QR Code" width="200" height="200">');
-                    
-                    // Display instructions.
-                    $('#webirr-payment-qr').append('<p>' + Str.get_string('scanqrcode', 'paygw_webirr') + '</p>');
-                    
-                    // Start polling for payment status.
-                    pollPaymentStatus(response.paymentid);
+                    paymentState.paymentId = response.paymentid;
+                    $('#payment-loading').hide();
+                    $('#payment-code-display')
+                        .empty()
+                        .append($('<div>').addClass('payment-code-title').text('WeBirr Payment Code'))
+                        .append($('<div>').addClass('payment-code-large').text(response.paymentcode))
+                        .append($('<p>').addClass('payment-instructions')
+                            .text('Use this payment code in your banking app to complete the payment.'));
+
+                    waitAndCheckPaymentStatus();
                 } else {
                     // Display error message.
-                    $('#webirr-payment-status').html('<p class="text-danger">' + response.error + '</p>');
+                    setStatus('danger', response.error, false);
                 }
             })
             .catch(Notification.exception);
     };
 
     /**
-     * Poll for payment status.
+     * Show or hide manual payment status actions.
      *
-     * @param {number} paymentId
+     * @param {boolean} visible Whether actions should be visible
      */
-    var pollPaymentStatus = function(paymentId) {
+    var showActions = function(visible) {
+        $('#payment-actions').toggle(visible);
+    };
+
+    /**
+     * Enable or disable manual action buttons.
+     *
+     * @param {boolean} disabled Whether buttons should be disabled
+     */
+    var setActionsDisabled = function(disabled) {
+        $('#payment-refresh-button').prop('disabled', disabled);
+    };
+
+    /**
+     * Display the current payment status.
+     *
+     * @param {string} type Bootstrap alert type
+     * @param {string} message Message to display
+     * @param {boolean} spinning Whether to show the spinner
+     */
+    var setStatus = function(type, message, spinning) {
+        var status = $('#payment-status');
+        var statusText = $('#payment-status-text');
+
+        status
+            .removeClass()
+            .addClass('alert alert-' + type);
+
+        if (statusText.length) {
+            statusText.text(message);
+            $('#payment-spinner').toggle(!!spinning);
+        } else {
+            status.text(message);
+        }
+    };
+
+    /**
+     * Display secondary payment status details.
+     *
+     * @param {string} message Message to display
+     */
+    var setDetail = function(message) {
+        $('#payment-detail').text(message);
+    };
+
+    /**
+     * Wait briefly before checking payment status once.
+     */
+    var waitAndCheckPaymentStatus = function() {
+        clearTimeout(paymentState.pollTimer);
+        showActions(false);
+        setActionsDisabled(true);
+        setStatus('info', 'Waiting for payment confirmation...', true);
+        setDetail('Checking payment status in about 5 seconds.');
+
+        paymentState.pollTimer = setTimeout(function() {
+            checkPaymentStatus(true);
+        }, POLL_DELAY_MS);
+    };
+
+    /**
+     * Check payment status once.
+     *
+     * @param {boolean} automatic Whether this check was started by the wait timer
+     */
+    var checkPaymentStatus = function(automatic) {
+        if (!paymentState.paymentId) {
+            return;
+        }
+
+        clearTimeout(paymentState.pollTimer);
+        setActionsDisabled(true);
+        setStatus('info', automatic ? 'Checking payment status...' : 'Refreshing payment status...', true);
+        setDetail('');
+
         // Check the payment status.
-        Repository.getPaymentStatus(paymentId)
+        Repository.getPaymentStatus(paymentState.paymentId)
             .then(function(response) {
                 if (response.success) {
                     if (response.complete) {
                         // Payment is complete.
-                        $('#webirr-payment-status').html('<p class="text-success">' + Str.get_string('paymentsuccessful', 'paygw_webirr') + '</p>');
-                        
+                        setStatus('success', 'Your payment was successful.', false);
+
                         // Redirect to success page.
                         setTimeout(function() {
-                            window.location.href = M.cfg.wwwroot + '/payment/gateway/webirr/success.php';
+                            window.location.href = M.cfg.wwwroot + '/payment/gateway/webirr/success.php'
+                                + '?component=' + encodeURIComponent(paymentState.component)
+                                + '&paymentarea=' + encodeURIComponent(paymentState.paymentArea)
+                                + '&itemid=' + encodeURIComponent(paymentState.itemId)
+                                + '&sesskey=' + encodeURIComponent(paymentState.sesskey);
                         }, 2000);
                     } else {
-                        // Payment is still pending.
-                        $('#webirr-payment-status').html('<p>' + Str.get_string('paymentpending', 'paygw_webirr') + '</p>');
-                        
-                        // Continue polling.
-                        setTimeout(function() {
-                            pollPaymentStatus(paymentId);
-                        }, 5000);
+                        setStatus('warning', 'Payment not received yet.', true);
+                        setDetail('');
+                        showActions(true);
+                        setActionsDisabled(true);
+                        paymentState.pollTimer = setTimeout(function() {
+                            checkPaymentStatus(true);
+                        }, POLL_DELAY_MS);
                     }
                 } else {
                     // Error checking payment status.
-                    $('#webirr-payment-status').html('<p class="text-danger">' + response.error + '</p>');
+                    setStatus('danger', response.error, false);
+                    showActions(true);
+                    setActionsDisabled(false);
                 }
             })
-            .catch(Notification.exception);
+            .catch(function(error) {
+                showActions(true);
+                setActionsDisabled(false);
+                Notification.exception(error);
+            });
     };
 
     return {
