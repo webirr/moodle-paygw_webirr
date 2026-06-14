@@ -17,13 +17,11 @@ Requirements
 
 - Moodle 3.11 or later
 - PHP 7.4 or later
-- PHP Client Library for WeBirr API 2.2.0 or later
 - WeBirr Merchant account
 
 Installation
 
 Place the plugin files in payment/gateway/webirr
-From payment/gateway/webirr, run `composer install --no-dev`
 Visit Site administration > Notifications to complete installation
 Configure the payment gateway with your WeBirr API key and merchant ID
 
@@ -39,8 +37,8 @@ external functions:
 
 | Checkout role | Moodle method | Source | WeBirr call |
 | --- | --- | --- | --- |
-| Create checkout/payment code | `paygw_webirr_get_code` | `classes/external/get_payment_code.php` | PHP SDK `createBill(...)` |
-| Check payment status | `paygw_webirr_get_status` | `classes/external/get_payment_status.php` | PHP SDK `getPaymentStatus(...)` |
+| Create checkout/payment code | `paygw_webirr_get_code` | `classes/external/get_payment_code.php` | Moodle-native client `create_bill(...)` |
+| Check payment status | `paygw_webirr_get_status` | `classes/external/get_payment_status.php` | Moodle-native client `get_payment_status(...)` |
 
 These endpoints are registered in `db/services.php` with `ajax => true` and are
 called by `amd/src/repository.js` through Moodle `core/ajax`. They are crucial
@@ -48,6 +46,9 @@ to the checkout flow because merchant API credentials stay on the Moodle server:
 the checkout endpoint creates the WeBirr bill and returns the payment code, and
 the payment status endpoint forwards a single status check to WeBirr, updates
 the local Moodle payment record, and completes delivery when payment is paid.
+The calls are made through the internal Moodle-native client in
+`classes/local/webirr_client.php`, so the plugin package does not require
+Composer dependencies at runtime.
 
 The plugin follows this flow to process payments:
 

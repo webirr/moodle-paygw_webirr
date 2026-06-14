@@ -2,8 +2,5 @@
   "name": "moodle/paygw_webirr",
   "description": "Moodle payment gateway plugin for WeBirr payments",
   "type": "moodle-plugin",
-  "license": "GPL-3.0-or-later",
-  "require": {
-    "webirr/webirr": "^2.2"
-  }
+  "license": "GPL-3.0-or-later"
 }

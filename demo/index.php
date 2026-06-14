@@ -2,10 +2,11 @@
 
 declare(strict_types=1);
 
-require_once(__DIR__ . '/../vendor/autoload.php');
+defined('MOODLE_INTERNAL') || define('MOODLE_INTERNAL', true);
 
-use WeBirr\Bill;
-use WeBirr\WeBirrClient;
+require_once(__DIR__ . '/../classes/local/webirr_client.php');
+
+use paygw_webirr\local\webirr_client;
 
 $path = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH) ?: '/';
 $pluginroot = dirname(__DIR__);
@@ -57,7 +58,7 @@ function create_bill(): void {
     $description = trim((string)($payload['description'] ?? 'moodle course enrollment'));
     $billreference = 'moodle_demo_' . date('YmdHis') . '_' . bin2hex(random_bytes(3));
 
-    $bill = new Bill();
+    $bill = new stdClass();
     $bill->amount = $amount;
     $bill->customerCode = 'MOODLE-DEMO';
     $bill->customerName = $customername !== '' ? $customername : 'Elias';
@@ -66,8 +67,8 @@ function create_bill(): void {
     $bill->description = $description !== '' ? $description : 'moodle course enrollment';
     $bill->billReference = $billreference;
 
-    $client = webirr_client();
-    $result = $client->createBill($bill);
+    $client = create_webirr_client();
+    $result = $client->create_bill($bill);
 
     if (!empty($result->error)) {
         json_response([
@@ -123,8 +124,8 @@ function payment_status(): void {
         json_response(['success' => false, 'error' => 'Payment record not found'], 404);
     }
 
-    $client = webirr_client();
-    $result = $client->getPaymentStatus((string)$payment['payment_code']);
+    $client = create_webirr_client();
+    $result = $client->get_payment_status((string)$payment['payment_code']);
 
     if (!empty($result->error)) {
         json_response([
@@ -211,7 +212,7 @@ function extract_payment_value(object $result, string $key): string {
     return '';
 }
 
-function webirr_client(): WeBirrClient {
+function create_webirr_client(): webirr_client {
     $merchantid = getenv('WEBIRR_TEST_ENV_MERCHANT_ID') ?: '';
     $apikey = getenv('WEBIRR_TEST_ENV_API_KEY') ?: '';
 
@@ -219,7 +220,66 @@ function webirr_client(): WeBirrClient {
         throw new RuntimeException('Set WEBIRR_TEST_ENV_MERCHANT_ID and WEBIRR_TEST_ENV_API_KEY before starting the demo.');
     }
 
-    return new WeBirrClient($merchantid, $apikey, true);
+    return new webirr_client($merchantid, $apikey, true, demo_transport());
+}
+
+function demo_transport(): callable {
+    return static function(string $method, string $url, ?array $payload, array $headers): array {
+        $body = $payload === null ? null : json_encode($payload, JSON_UNESCAPED_SLASHES);
+        if ($payload !== null && $body === false) {
+            return [
+                'status' => 0,
+                'body' => '',
+                'error' => 'Unable to encode request payload',
+            ];
+        }
+
+        if (function_exists('curl_init')) {
+            $ch = curl_init($url);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $method);
+            curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+            if ($body !== null) {
+                curl_setopt($ch, CURLOPT_POSTFIELDS, $body);
+            }
+
+            $responsebody = curl_exec($ch);
+            $error = curl_error($ch);
+            $status = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+
+            return [
+                'status' => $status,
+                'body' => $responsebody === false ? '' : (string)$responsebody,
+                'error' => $error,
+            ];
+        }
+
+        $options = [
+            'http' => [
+                'method' => $method,
+                'header' => implode("\r\n", $headers),
+                'ignore_errors' => true,
+            ],
+        ];
+        if ($body !== null) {
+            $options['http']['content'] = $body;
+        }
+
+        $responsebody = file_get_contents($url, false, stream_context_create($options));
+        $status = 0;
+        foreach ($http_response_header ?? [] as $header) {
+            if (preg_match('/^HTTP\/\S+\s+(\d+)/', $header, $matches)) {
+                $status = (int)$matches[1];
+                break;
+            }
+        }
+
+        return [
+            'status' => $status,
+            'body' => $responsebody === false ? '' : (string)$responsebody,
+            'error' => $responsebody === false ? 'HTTP request failed' : '',
+        ];
+    };
 }
 
 function demo_db(): PDO {

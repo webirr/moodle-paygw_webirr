@@ -4,13 +4,12 @@ namespace paygw_webirr\external;
 defined('MOODLE_INTERNAL') || die();
 
 require_once($CFG->libdir . '/externallib.php');
-require_once($CFG->dirroot . '/payment/gateway/webirr/vendor/autoload.php');
 
 use external_api;
 use external_function_parameters;
 use external_single_structure;
 use external_value;
-use WeBirr\WeBirrClient;
+use paygw_webirr\local\webirr_client;
 
 class get_payment_status extends external_api {
 
@@ -68,10 +67,10 @@ class get_payment_status extends external_api {
 
         // Create a WeBirr client.
         $isTestEnv = isset($config['testmode']) ? (bool)$config['testmode'] : true;
-        $client = new WeBirrClient($config['merchantid'], $config['apikey'], $isTestEnv);
+        $client = new webirr_client($config['merchantid'], $config['apikey'], $isTestEnv);
 
         // Check the payment status.
-        $paymentStatus = $client->getPaymentStatus($payment->wbc_code);
+        $paymentStatus = $client->get_payment_status($payment->wbc_code);
 
         // Check if payment status check was successful.
         if (empty($paymentStatus->error)) {

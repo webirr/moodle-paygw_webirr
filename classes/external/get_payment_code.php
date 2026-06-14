@@ -4,14 +4,12 @@ namespace paygw_webirr\external;
 defined('MOODLE_INTERNAL') || die();
 
 require_once($CFG->libdir . '/externallib.php');
-require_once($CFG->dirroot . '/payment/gateway/webirr/vendor/autoload.php');
 
 use external_api;
 use external_function_parameters;
 use external_single_structure;
 use external_value;
-use WeBirr\WeBirrClient;
-use WeBirr\Bill;
+use paygw_webirr\local\webirr_client;
 
 class get_payment_code extends external_api {
 
@@ -81,7 +79,7 @@ class get_payment_code extends external_api {
 
         // Create a WeBirr client.
         $isTestEnv = isset($config['testmode']) ? (bool)$config['testmode'] : true;
-        $client = new WeBirrClient($config['merchantid'], $config['apikey'], $isTestEnv);
+        $client = new webirr_client($config['merchantid'], $config['apikey'], $isTestEnv);
 
         $customerphone = '';
         if (!empty($USER->phone1)) {
@@ -90,8 +88,8 @@ class get_payment_code extends external_api {
             $customerphone = $USER->phone2;
         }
 
-        // Create a Bill object for WeBirr.
-        $bill = new Bill();
+        // Create a bill object for WeBirr.
+        $bill = new \stdClass();
         $bill->amount = number_format((float)$amount, 2, '.', '');
         $bill->customerCode = (string)$USER->id;
         $bill->customerName = fullname($USER);
@@ -101,7 +99,7 @@ class get_payment_code extends external_api {
         $bill->billReference = $billreference;
 
         // Create a bill with WeBirr.
-        $result = $client->createBill($bill);
+        $result = $client->create_bill($bill);
 
         // Check if bill creation was successful.
         if (empty($result->error)) {
