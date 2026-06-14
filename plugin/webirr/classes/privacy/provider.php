@@ -27,8 +27,19 @@ class provider implements
             'paygw_webirr_payments',
             [
                 'userid' => 'privacy:metadata:paygw_webirr:userid',
+                'component' => 'privacy:metadata:paygw_webirr:component',
+                'paymentarea' => 'privacy:metadata:paygw_webirr:paymentarea',
+                'itemid' => 'privacy:metadata:paygw_webirr:itemid',
                 'billreference' => 'privacy:metadata:paygw_webirr:billreference',
+                'wbc_code' => 'privacy:metadata:paygw_webirr:wbc_code',
+                'amount' => 'privacy:metadata:paygw_webirr:amount',
+                'currency' => 'privacy:metadata:paygw_webirr:currency',
                 'status' => 'privacy:metadata:paygw_webirr:paymentstatus',
+                'paymentid' => 'privacy:metadata:paygw_webirr:paymentid',
+                'paymentreference' => 'privacy:metadata:paygw_webirr:paymentreference',
+                'paymentissuer' => 'privacy:metadata:paygw_webirr:paymentissuer',
+                'timecreated' => 'privacy:metadata:paygw_webirr:timecreated',
+                'timemodified' => 'privacy:metadata:paygw_webirr:timemodified',
             ],
             'privacy:metadata:paygw_webirr'
         );
@@ -99,6 +110,8 @@ class provider implements
                     'amount' => $record->amount,
                     'currency' => $record->currency,
                     'status' => $record->status,
+                    'paymentreference' => $record->paymentreference,
+                    'paymentissuer' => $record->paymentissuer,
                     'timecreated' => transform::datetime($record->timecreated),
                     'timemodified' => transform::datetime($record->timemodified),
                 ];

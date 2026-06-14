@@ -13,6 +13,9 @@
                 <FIELD NAME="amount" TYPE="number" LENGTH="10" DECIMALS="2" NOTNULL="true" SEQUENCE="false" COMMENT="Amount to pay"/>
                 <FIELD NAME="currency" TYPE="char" LENGTH="3" NOTNULL="true" SEQUENCE="false" COMMENT="Currency code"/>
                 <FIELD NAME="status" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Payment status: 0=pending, 1=in progress, 2=paid, 3=reversed"/>
+                <FIELD NAME="paymentid" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="Moodle core payment record ID"/>
+                <FIELD NAME="paymentreference" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false" COMMENT="Bank payment reference"/>
+                <FIELD NAME="paymentissuer" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false" COMMENT="Bank or payment issuer display name"/>
                 <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="Time created"/>
                 <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="Time modified"/>
             </FIELDS>
@@ -23,6 +26,7 @@
             <INDEXES>
                 <INDEX NAME="billreference" UNIQUE="false" FIELDS="billreference"/>
                 <INDEX NAME="wbc_code" UNIQUE="false" FIELDS="wbc_code"/>
+                <INDEX NAME="paymentid" UNIQUE="false" FIELDS="paymentid"/>
             </INDEXES>
         </TABLE>
     </TABLES>

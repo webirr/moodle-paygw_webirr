@@ -60,17 +60,18 @@ class get_payment_code extends external_api {
         
         // Get the gateway configuration.
         $account = new \core_payment\account($accountid);
-        $gateway = $account->get_gateway_by_type('webirr');
-        if (!$gateway) {
-            throw new \moodle_exception('WeBirr gateway not available');
+        $gateways = $account->get_gateways(false);
+        $gateway = $gateways['webirr'] ?? null;
+        if (!$gateway || !$gateway->get('enabled')) {
+            throw new \moodle_exception('gatewaynotavailable', 'paygw_webirr');
         }
         
-        $config = (array)json_decode($gateway->get_gateway_configuration(), true);
+        $config = $gateway->get_configuration();
 
         if (empty($config['apikey']) || empty($config['merchantid'])) {
             return [
                 'success' => false,
-                'error' => 'WeBirr gateway is not configured'
+                'error' => get_string('gatewaynotconfigured', 'paygw_webirr')
             ];
         }
 
@@ -124,7 +125,8 @@ class get_payment_code extends external_api {
             return [
                 'success' => true,
                 'paymentcode' => $paymentcode,
-                'paymentid' => $record->id
+                'paymentid' => $record->id,
+                'billreference' => $billreference
             ];
         } else {
             return [
@@ -143,6 +145,7 @@ class get_payment_code extends external_api {
             'success' => new external_value(PARAM_BOOL, 'Whether the payment code was created successfully'),
             'paymentcode' => new external_value(PARAM_TEXT, 'The WeBirr payment code', VALUE_OPTIONAL),
             'paymentid' => new external_value(PARAM_INT, 'The payment record ID', VALUE_OPTIONAL),
+            'billreference' => new external_value(PARAM_TEXT, 'The merchant bill reference', VALUE_OPTIONAL),
             'error' => new external_value(PARAM_TEXT, 'The error message if the payment code was not created', VALUE_OPTIONAL)
         ]);
     }

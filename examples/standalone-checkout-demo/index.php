@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 defined('MOODLE_INTERNAL') || define('MOODLE_INTERNAL', true);
 
-require_once(__DIR__ . '/../classes/local/webirr_client.php');
+require_once(__DIR__ . '/../../plugin/webirr/classes/local/webirr_client.php');
 
 use paygw_webirr\local\webirr_client;
 
 $path = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH) ?: '/';
-$pluginroot = dirname(__DIR__);
+$pluginroot = dirname(__DIR__, 2) . '/plugin/webirr';
 $requestedfile = realpath($pluginroot . $path);
 
 if (
@@ -18,7 +18,14 @@ if (
     strpos($requestedfile, $pluginroot . DIRECTORY_SEPARATOR) === 0 &&
     is_file($requestedfile)
 ) {
-    return false;
+    $contenttype = function_exists('mime_content_type') ? mime_content_type($requestedfile) : false;
+    header('Content-Type: ' . ($contenttype ?: 'application/octet-stream'));
+    header('Content-Length: ' . (string)filesize($requestedfile));
+    if ($_SERVER['REQUEST_METHOD'] === 'HEAD') {
+        return;
+    }
+    readfile($requestedfile);
+    return;
 }
 
 if (strpos($path, '/api/') === 0) {
@@ -550,17 +557,35 @@ function render_page(): void {
             color: var(--muted);
             font-size: 14px;
         }
-        .payment-instruction-link {
-            margin-top: 10px;
+        .payment-instruction-list {
+            margin: 14px 0;
+            padding: 12px 14px;
+            border: 1px solid #d8e6f3;
+            border-radius: var(--radius);
+            background: #f7fbff;
             font-size: 14px;
         }
-        .payment-instruction-link a {
+        .payment-instruction-title {
+            margin-bottom: 8px;
             color: var(--primary);
-            font-weight: 600;
-            text-decoration: none;
+            font-weight: 700;
         }
-        .payment-instruction-link a:hover {
-            text-decoration: underline;
+        .payment-instruction-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+            padding: 2px 0;
+        }
+        .payment-instruction-channel {
+            min-width: 90px;
+            font-weight: 600;
+        }
+        .payment-instruction-arrow {
+            color: var(--muted);
+        }
+        .payment-instruction-target {
+            font-weight: 600;
         }
         .record {
             display: grid;
@@ -672,8 +697,13 @@ function render_page(): void {
                     <span class="status-spinner" aria-hidden="true" style="display: inline-block;"></span>
                     <span>Payment not received yet.</span>
                 </div>
-                <div class="payment-instruction-link">
-                    <a href="https://webirr.net/instructions/all.html" target="_blank" rel="noopener">Payment Instruction</a>
+                <div class="payment-instruction-list">
+                    <div class="payment-instruction-title">Payment Instruction</div>
+                    <div class="payment-instruction-item"><span class="payment-instruction-channel">CBE Mobile</span><span class="payment-instruction-arrow">-&gt;</span><span class="payment-instruction-target">WeBirr</span><span class="payment-instruction-arrow">-&gt;</span><span class="payment-instruction-target">Payment Code</span></div>
+                    <div class="payment-instruction-item"><span class="payment-instruction-channel">CBE Birr</span><span class="payment-instruction-arrow">-&gt;</span><span class="payment-instruction-target">WeBirr</span><span class="payment-instruction-arrow">-&gt;</span><span class="payment-instruction-target">Payment Code</span></div>
+                    <div class="payment-instruction-item"><span class="payment-instruction-channel">Awash Birr</span><span class="payment-instruction-arrow">-&gt;</span><span class="payment-instruction-target">WeBirr</span><span class="payment-instruction-arrow">-&gt;</span><span class="payment-instruction-target">Payment Code</span></div>
+                    <div class="payment-instruction-item"><span class="payment-instruction-channel">Telebirr</span><span class="payment-instruction-arrow">-&gt;</span><span class="payment-instruction-target">WeBirr</span><span class="payment-instruction-arrow">-&gt;</span><span class="payment-instruction-target">Payment Code</span></div>
+                    <div class="payment-instruction-item"><span class="payment-instruction-channel">M-Pesa</span><span class="payment-instruction-arrow">-&gt;</span><span class="payment-instruction-target">WeBirr</span><span class="payment-instruction-arrow">-&gt;</span><span class="payment-instruction-target">Payment Code</span></div>
                 </div>
                 <dl class="record">
                     <dt>Merchant reference</dt>
@@ -723,8 +753,13 @@ function render_page(): void {
                         <span class="status-spinner" id="statusSpinner" aria-hidden="true"></span>
                         <span id="statusText">Create a bill to start the checkout flow.</span>
                     </div>
-                    <div class="payment-instruction-link">
-                        <a href="https://webirr.net/instructions/all.html" target="_blank" rel="noopener">Payment Instruction</a>
+                    <div class="payment-instruction-list">
+                        <div class="payment-instruction-title">Payment Instruction</div>
+                        <div class="payment-instruction-item"><span class="payment-instruction-channel">CBE Mobile</span><span class="payment-instruction-arrow">-&gt;</span><span class="payment-instruction-target">WeBirr</span><span class="payment-instruction-arrow">-&gt;</span><span class="payment-instruction-target">Payment Code</span></div>
+                        <div class="payment-instruction-item"><span class="payment-instruction-channel">CBE Birr</span><span class="payment-instruction-arrow">-&gt;</span><span class="payment-instruction-target">WeBirr</span><span class="payment-instruction-arrow">-&gt;</span><span class="payment-instruction-target">Payment Code</span></div>
+                        <div class="payment-instruction-item"><span class="payment-instruction-channel">Awash Birr</span><span class="payment-instruction-arrow">-&gt;</span><span class="payment-instruction-target">WeBirr</span><span class="payment-instruction-arrow">-&gt;</span><span class="payment-instruction-target">Payment Code</span></div>
+                        <div class="payment-instruction-item"><span class="payment-instruction-channel">Telebirr</span><span class="payment-instruction-arrow">-&gt;</span><span class="payment-instruction-target">WeBirr</span><span class="payment-instruction-arrow">-&gt;</span><span class="payment-instruction-target">Payment Code</span></div>
+                        <div class="payment-instruction-item"><span class="payment-instruction-channel">M-Pesa</span><span class="payment-instruction-arrow">-&gt;</span><span class="payment-instruction-target">WeBirr</span><span class="payment-instruction-arrow">-&gt;</span><span class="payment-instruction-target">Payment Code</span></div>
                     </div>
                     <div class="meta" id="statusMeta"></div>
                     <div class="button-row" id="statusActions" style="display: none;">

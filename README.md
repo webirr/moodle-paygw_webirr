@@ -2,32 +2,48 @@
 
 ![WeBirr Online Checkout flow](screenshots/webirr-online-checkout-journey.jpg)
 
-This plugin integrates WeBirr payment gateway with Moodle, allowing for Ethiopian Birr (ETB) payments via various banking apps.
+This repository contains the WeBirr Moodle payment gateway plugin plus two
+clearly separated example areas.
 
-The plugin uses Moodle's payment gateway system and a Moodle-native WeBirr client, so it can be packaged without requiring Composer installation on the Moodle server.
+## Repository Layout
 
-Features
+| Area | Path | Status |
+| --- | --- | --- |
+| Actual Moodle plugin | `plugin/webirr` | Production plugin source. This is the code that must be packaged as a Moodle plugin folder named `webirr`. |
+| Moodle checkout example site | `examples/moodle-checkout-site` | Planned Docker/local Moodle demo environment that installs and exercises the actual plugin. This should become the preferred screenshot and release-validation path. |
+| Standalone checkout demo | `examples/standalone-checkout-demo` | Standalone PHP checkout showcase. It uses the plugin's Moodle-native WeBirr client, but it is not the Moodle plugin flow. |
 
-Easy integration with Moodle's payment subsystem
-Simple payment experience with clear payment code display
-Real-time payment status monitoring
-Support for both test and production environments
+The standalone demo is useful for quickly showing the WeBirr online checkout
+pattern without a Moodle install. The actual Moodle plugin remains the source
+of truth for Moodle behavior.
 
-Requirements
+## Actual Plugin
 
-- Moodle 3.11 or later
-- PHP 7.4 or later
-- WeBirr Merchant account
+The Moodle plugin lives in `plugin/webirr`. It integrates WeBirr with Moodle's
+payment gateway system and uses a Moodle-native WeBirr client, so it can be
+packaged without requiring Composer installation on the Moodle server.
 
-Installation
+Features:
 
-Place the plugin files in payment/gateway/webirr
-Visit Site administration > Notifications to complete installation
-Configure the payment gateway with your WeBirr API key and merchant ID
+- Easy integration with Moodle's payment subsystem
+- Simple payment experience with clear payment code display
+- Real-time payment status monitoring
+- Support for both test and production environments
 
-### Status
-This plugin is being prepared for Moodle Plugins directory submission. Before using it on a live Moodle site, complete a full Moodle install test, gateway configuration test, and TestEnv checkout validation with developer debugging enabled.
+Requirements:
 
+- Moodle 4.5 LTS through Moodle 5.2
+- PHP version supported by the target Moodle release
+- WeBirr merchant account
+
+Installation from source:
+
+1. Copy `plugin/webirr` into Moodle as `payment/gateway/webirr`.
+2. Visit Site administration > Notifications to complete installation.
+3. Configure the payment gateway with your WeBirr API key and merchant ID.
+
+Release packaging still needs a dedicated script/workflow so the release ZIP has
+a top-level folder named `webirr`. See `docs/release-workflow.md`.
 
 ## How the WeBirr Integration Works
 
@@ -37,40 +53,65 @@ external functions:
 
 | Checkout role | Moodle method | Source | WeBirr call |
 | --- | --- | --- | --- |
-| Create checkout/payment code | `paygw_webirr_get_code` | `classes/external/get_payment_code.php` | Moodle-native client `create_bill(...)` |
-| Check payment status | `paygw_webirr_get_status` | `classes/external/get_payment_status.php` | Moodle-native client `get_payment_status(...)` |
+| Create checkout/payment code | `paygw_webirr_get_code` | `plugin/webirr/classes/external/get_payment_code.php` | Moodle-native client `create_bill(...)` |
+| Check payment status | `paygw_webirr_get_status` | `plugin/webirr/classes/external/get_payment_status.php` | Moodle-native client `get_payment_status(...)` |
 
-These endpoints are registered in `db/services.php` with `ajax => true` and are
-called by `amd/src/repository.js` through Moodle `core/ajax`. They are crucial
-to the checkout flow because merchant API credentials stay on the Moodle server:
-the checkout endpoint creates the WeBirr bill and returns the payment code, and
-the payment status endpoint forwards a single status check to WeBirr, updates
-the local Moodle payment record, and completes delivery when payment is paid.
-The calls are made through the internal Moodle-native client in
-`classes/local/webirr_client.php`, so the plugin package does not require
-Composer dependencies at runtime.
+These endpoints are registered in `plugin/webirr/db/services.php` with
+`ajax => true` and are called by `plugin/webirr/amd/src/repository.js` through
+Moodle `core/ajax`. Merchant API credentials stay on the Moodle server: the
+checkout endpoint creates the WeBirr bill and returns the payment code, and the
+payment status endpoint forwards a single status check to WeBirr, updates the
+local Moodle payment record, and completes delivery when payment is paid.
 
-The plugin follows this flow to process payments:
+The calls are made through `plugin/webirr/classes/local/webirr_client.php`, so
+the plugin package does not require Composer dependencies at runtime.
 
-1. **Creating the Payment**
-  - When a user initiates payment, the plugin calls `get_payment_code` which creates an invoice at WeBirr using the WeBirr Create Bill API
-  - The API returns a payment code that the user will enter in their banking app
-  - This code, along with all payment details, is stored in the Moodle database for tracking and verification
+The payment flow is:
 
+1. **Invoice Creation / Checkout on Purchase**
+   - The user starts a Moodle purchase or paid enrollment checkout.
+   - Moodle calls `get_payment_code`, which creates a WeBirr bill/invoice.
+   - Moodle stores the local payment details for verification and later access delivery.
 2. **Payment Code Display**
-  - The payment page displays this code prominently to the user 
-  - The page is designed to make the code easily readable for entry in banking apps
-
-3. **Status Monitoring**
-  - While displaying the payment code, JavaScript code begins polling WeBirr's API
-  - An AJAX function periodically calls `get_payment_status` (every 5 seconds) 
-  - This checks if the user has completed payment through their banking app by querying the WeBirr Payment Status API
-  - The polling continues until the payment is confirmed or times out
-
+   - WeBirr returns a payment code for the user to enter in their banking app.
+   - The payment page displays the code prominently.
+   - The instructions use the format `CBE Mobile -> WeBirr -> Payment Code`.
+3. **Payment Status Monitoring**
+   - JavaScript polls the Moodle AJAX status endpoint.
+   - Moodle checks the WeBirr Payment Status API from the server side.
 4. **Completion and Access**
-  - Once payment is detected as confirmed by the WeBirr API, the payment record is updated in the database
-  - The user is automatically redirected to a success page
-  - The Moodle payment system grants access to the purchased item (course enrollment, etc.)
-  - If payment fails or times out, appropriate error handling directs the user
+   - Once paid, Moodle updates the payment record and redirects to success.
+   - Moodle's payment subsystem grants access to the purchased item.
 
-This implementation follows Moodle's payment gateway architecture while incorporating the specific requirements of WeBirr's payment flow.
+## Examples
+
+### Moodle Checkout Example Site
+
+`examples/moodle-checkout-site` is reserved for a real Moodle demo environment
+that installs `plugin/webirr` and validates the plugin flow inside Moodle. This
+is the right place for Docker setup, seed data, and future screenshot capture
+automation.
+
+### Standalone Checkout Demo
+
+`examples/standalone-checkout-demo` is a standalone PHP demo app. It shares the
+actual plugin client in `plugin/webirr/classes/local/webirr_client.php`, but it
+has its own HTML, CSS, JavaScript, demo API routes, and SQLite demo storage.
+
+Run it with TestEnv credentials:
+
+```sh
+WEBIRR_TEST_ENV_MERCHANT_ID=0305 \
+WEBIRR_TEST_ENV_API_KEY=... \
+php -S 127.0.0.1:8096 examples/standalone-checkout-demo/index.php
+```
+
+Then open `http://127.0.0.1:8096/`.
+
+## Release Status
+
+This plugin is prepared as a Moodle Plugins directory review candidate.
+Production use should follow normal Moodle plugin rollout practice: install in a
+staging Moodle site first, configure a WeBirr TestEnv payment account, complete a
+checkout validation with developer debugging enabled, and then promote the same
+release package to production.

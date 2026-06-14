@@ -3,13 +3,14 @@
  * WeBirr payment handling module.
  *
  * @module     paygw_webirr/payment
- * @copyright  2025 Your Name <your.email@example.com>
+ * @copyright  2026 WeBirr
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 define(['jquery', 'core/notification', 'paygw_webirr/repository'],
 function($, Notification, Repository) {
     var POLL_DELAY_MS = 5000;
     var paymentState = {};
+    var strings = {};
 
     /**
      * Initialize the payment process.
@@ -19,8 +20,9 @@ function($, Notification, Repository) {
      * @param {number} itemId
      * @param {string} description
      * @param {string} sesskey
+     * @param {Object} localizedStrings Localized UI strings from Moodle
      */
-    var init = function(component, paymentArea, itemId, description, sesskey) {
+    var init = function(component, paymentArea, itemId, description, sesskey, localizedStrings) {
         paymentState = {
             component: component,
             paymentArea: paymentArea,
@@ -29,13 +31,14 @@ function($, Notification, Repository) {
             paymentId: null,
             pollTimer: null
         };
+        strings = localizedStrings || {};
 
         $('#payment-refresh-button').off('click').on('click', function() {
             checkPaymentStatus(false);
         });
 
         showActions(false);
-        setStatus('info', 'Creating payment code...', true);
+        setStatus('info', getString('creatingpaymentcode'), true);
 
         // Get the payment code.
         Repository.getPaymentCode(component, paymentArea, itemId, description)
@@ -45,10 +48,11 @@ function($, Notification, Repository) {
                     $('#payment-loading').hide();
                     $('#payment-code-display')
                         .empty()
-                        .append($('<div>').addClass('payment-code-title').text('WeBirr Payment Code'))
-                        .append($('<div>').addClass('payment-code-large').text(response.paymentcode))
-                        .append($('<p>').addClass('payment-instructions')
-                            .text('Use this payment code in your banking app to complete the payment.'));
+                        .append($('<div>').addClass('payment-code-title').text(getString('webirrpaymentcode')))
+                        .append($('<div>').addClass('payment-code-large').text(response.paymentcode));
+                    $('#merchant-reference').text(response.billreference || '');
+                    $('#local-payment-status').text('pending');
+                    $('#payment-record').show();
 
                     waitAndCheckPaymentStatus();
                 } else {
@@ -65,7 +69,7 @@ function($, Notification, Repository) {
      * @param {boolean} visible Whether actions should be visible
      */
     var showActions = function(visible) {
-        $('#payment-actions').toggle(visible);
+        $('#payment-actions').css('display', visible ? 'flex' : 'none');
     };
 
     /**
@@ -116,8 +120,8 @@ function($, Notification, Repository) {
         clearTimeout(paymentState.pollTimer);
         showActions(false);
         setActionsDisabled(true);
-        setStatus('info', 'Waiting for payment confirmation...', true);
-        setDetail('Checking payment status in about 5 seconds.');
+        setStatus('info', getString('waitingpaymentconfirmation'), true);
+        setDetail(getString('checkingpaymentstatusdelay'));
 
         paymentState.pollTimer = setTimeout(function() {
             checkPaymentStatus(true);
@@ -136,7 +140,7 @@ function($, Notification, Repository) {
 
         clearTimeout(paymentState.pollTimer);
         setActionsDisabled(true);
-        setStatus('info', automatic ? 'Checking payment status...' : 'Refreshing payment status...', true);
+        setStatus('info', automatic ? getString('checkpaymentstatus') : getString('refreshingpaymentstatus'), true);
         setDetail('');
 
         // Check the payment status.
@@ -145,7 +149,8 @@ function($, Notification, Repository) {
                 if (response.success) {
                     if (response.complete) {
                         // Payment is complete.
-                        setStatus('success', 'Your payment was successful.', false);
+                        setStatus('success', getString('paymentsuccessful'), false);
+                        $('#local-payment-status').text('paid');
 
                         // Redirect to success page.
                         setTimeout(function() {
@@ -156,7 +161,8 @@ function($, Notification, Repository) {
                                 + '&sesskey=' + encodeURIComponent(paymentState.sesskey);
                         }, 2000);
                     } else {
-                        setStatus('warning', 'Payment not received yet.', true);
+                        setStatus('warning', getString('paymentnotreceived'), true);
+                        $('#local-payment-status').text('pending');
                         setDetail('');
                         showActions(true);
                         setActionsDisabled(true);
@@ -176,6 +182,28 @@ function($, Notification, Repository) {
                 setActionsDisabled(false);
                 Notification.exception(error);
             });
+    };
+
+    /**
+     * Get a localized string with a defensive fallback.
+     *
+     * @param {string} key String key
+     * @return {string}
+     */
+    var getString = function(key) {
+        var defaults = {
+            creatingpaymentcode: 'Creating payment code...',
+            webirrpaymentcode: 'WeBirr Payment Code',
+            usepaymentcode: 'Use this payment code in your banking app to complete the payment.',
+            waitingpaymentconfirmation: 'Waiting for payment confirmation...',
+            checkingpaymentstatusdelay: 'Checking payment status in about 5 seconds.',
+            checkpaymentstatus: 'Checking payment status...',
+            refreshingpaymentstatus: 'Refreshing payment status...',
+            paymentsuccessful: 'Your payment was successful.',
+            paymentnotreceived: 'Payment not received yet.'
+        };
+
+        return strings[key] || defaults[key] || key;
     };
 
     return {
