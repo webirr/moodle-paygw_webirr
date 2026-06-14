@@ -1,10 +1,10 @@
-# WeBirr Moodle Plugin - Proof of concept 
+# WeBirr Moodle Plugin
 
 ![WeBirr Online Checkout flow](screenshots/webirr-online-checkout-journey.jpg)
 
 This plugin integrates WeBirr payment gateway with Moodle, allowing for Ethiopian Birr (ETB) payments via various banking apps.
 
-**IMPORTANT: This is a proof of concept only and not ready for production use.**
+The plugin uses Moodle's payment gateway system and a Moodle-native WeBirr client, so it can be packaged without requiring Composer installation on the Moodle server.
 
 Features
 
@@ -26,7 +26,7 @@ Visit Site administration > Notifications to complete installation
 Configure the payment gateway with your WeBirr API key and merchant ID
 
 ### Status
-This is an early prototype to demonstrate the integration concept. It requires further development and testing before it can be used in a production environment.
+This plugin is being prepared for Moodle Plugins directory submission. Before using it on a live Moodle site, complete a full Moodle install test, gateway configuration test, and TestEnv checkout validation with developer debugging enabled.
 
 
 ## How the WeBirr Integration Works
