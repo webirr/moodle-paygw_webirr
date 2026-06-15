@@ -86,34 +86,32 @@
     letter-spacing: 0;
 }
 
-.webirr-field {
-    margin-bottom: 14px;
-}
-
-.webirr-field label {
-    display: block;
-    margin-bottom: 6px;
-    font-size: 13px;
-    font-weight: 600;
-    color: #334155;
-}
-
-.webirr-readonly-input {
-    width: 100%;
-    min-height: 40px;
-    border: 1px solid #cbd5e1;
-    border-radius: 6px;
-    padding: 8px 10px;
-    color: var(--webirr-ink);
-    background: #ffffff;
-    font: inherit;
-}
-
 .webirr-button-row {
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
     margin-top: 16px;
+}
+
+.webirr-summary {
+    display: grid;
+    grid-template-columns: 120px minmax(0, 1fr);
+    gap: 10px 14px;
+    margin: 0;
+    padding: 0;
+}
+
+.webirr-summary dt {
+    color: var(--webirr-muted);
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.webirr-summary dd {
+    margin: 0;
+    color: var(--webirr-ink);
+    font-weight: 700;
+    overflow-wrap: anywhere;
 }
 
 .webirr-primary-button,
@@ -129,10 +127,32 @@
     cursor: pointer;
 }
 
+.webirr-secondary-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 40px;
+    border: 1px solid var(--webirr-line);
+    border-radius: 6px;
+    padding: 9px 14px;
+    background: #ffffff;
+    color: var(--webirr-ink);
+    font: inherit;
+    font-weight: 600;
+    text-decoration: none;
+}
+
 .webirr-primary-button:hover:not(:disabled),
 .payment-actions .webirr-primary-button:hover:not(:disabled) {
     background: var(--webirr-primary-dark);
     color: #ffffff;
+}
+
+.webirr-secondary-button:hover,
+.webirr-secondary-button:focus {
+    background: #f8fafc;
+    color: var(--webirr-ink);
+    text-decoration: none;
 }
 
 .webirr-primary-button:disabled {

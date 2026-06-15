@@ -27,21 +27,48 @@ function($, Notification, Repository) {
             component: component,
             paymentArea: paymentArea,
             itemId: itemId,
+            description: description,
             sesskey: sesskey,
             paymentId: null,
             pollTimer: null
         };
         strings = localizedStrings || {};
 
+        $('#webirr-checkout-button').off('click').on('click', function() {
+            createPaymentCode();
+        });
+
         $('#payment-refresh-button').off('click').on('click', function() {
             checkPaymentStatus(false);
         });
 
         showActions(false);
+        $('#payment-loading').hide();
+        $('#payment-code-display').empty();
+        $('#payment-record').hide();
+        setStatus('info', getString('readyforcheckout'), false);
+    };
+
+    /**
+     * Create the WeBirr payment code after the user confirms checkout.
+     */
+    var createPaymentCode = function() {
+        if (paymentState.paymentId) {
+            return;
+        }
+
+        $('#webirr-checkout-button').prop('disabled', true);
+        $('#payment-loading').show();
+        $('#payment-code-display').empty();
         setStatus('info', getString('creatingpaymentcode'), true);
 
         // Get the payment code.
-        Repository.getPaymentCode(component, paymentArea, itemId, description)
+        Repository.getPaymentCode(
+            paymentState.component,
+            paymentState.paymentArea,
+            paymentState.itemId,
+            paymentState.description
+        )
             .then(function(response) {
                 if (response.success) {
                     paymentState.paymentId = response.paymentid;
@@ -58,9 +85,13 @@ function($, Notification, Repository) {
                 } else {
                     // Display error message.
                     setStatus('danger', response.error, false);
+                    $('#webirr-checkout-button').prop('disabled', false);
                 }
             })
-            .catch(Notification.exception);
+            .catch(function(error) {
+                $('#webirr-checkout-button').prop('disabled', false);
+                Notification.exception(error);
+            });
     };
 
     /**
@@ -164,7 +195,7 @@ function($, Notification, Repository) {
                         setStatus('warning', getString('paymentnotreceived'), true);
                         $('#local-payment-status').text('pending');
                         setDetail('');
-                        showActions(true);
+                        showActions(false);
                         setActionsDisabled(true);
                         paymentState.pollTimer = setTimeout(function() {
                             checkPaymentStatus(true);
@@ -193,6 +224,7 @@ function($, Notification, Repository) {
     var getString = function(key) {
         var defaults = {
             creatingpaymentcode: 'Creating payment code...',
+            readyforcheckout: 'Review the checkout details and continue when ready.',
             webirrpaymentcode: 'WeBirr Payment Code',
             usepaymentcode: 'Use this payment code in your banking app to complete the payment.',
             waitingpaymentconfirmation: 'Waiting for payment confirmation...',

@@ -71,16 +71,24 @@ class gateway extends \core_payment\gateway {
      * @return string The URL to redirect to
      */
     public function get_payment_url(payable $payable, string $redirect, string $cancelurl): string {
-        global $CFG;
-        
-        // Generate the URL for the payment page.
-        $url = new \moodle_url('/payment/gateway/webirr/pay.php', [
+        $params = [
             'component' => $payable->get_component(),
             'paymentarea' => $payable->get_payment_area(),
             'itemid' => $payable->get_item_id(),
-            'description' => $payable->get_description()
-        ]);
-        
+            'description' => $payable->get_description(),
+        ];
+
+        if ($cancelurl !== '') {
+            try {
+                $params['cancelurl'] = (new \moodle_url($cancelurl))->out_as_local_url(false);
+            } catch (\Exception $e) {
+                debugging('Invalid WeBirr payment cancel URL: ' . $e->getMessage(), DEBUG_DEVELOPER);
+            }
+        }
+
+        // Generate the URL for the payment page.
+        $url = new \moodle_url('/payment/gateway/webirr/pay.php', $params);
+
         return $url->out(false);
     }
 }

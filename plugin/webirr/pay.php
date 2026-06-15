@@ -6,6 +6,7 @@ $component = required_param('component', PARAM_COMPONENT);
 $paymentarea = required_param('paymentarea', PARAM_AREA);
 $itemid = required_param('itemid', PARAM_INT);
 $description = required_param('description', PARAM_TEXT);
+$cancelurl = optional_param('cancelurl', '', PARAM_LOCALURL);
 
 require_login();
 
@@ -27,6 +28,16 @@ $amount = $payable->get_amount();
 $currency = $payable->get_currency();
 $displayamount = number_format((float)$amount, 2, '.', '');
 $customername = !empty($USER->firstname) ? $USER->firstname : fullname($USER);
+$displayamountwithcurrency = trim($displayamount . ' ' . $currency);
+
+if ($cancelurl === '') {
+    $cancelurl = (new moodle_url('/payment/gateway/webirr/cancel.php', [
+        'component' => $component,
+        'paymentarea' => $paymentarea,
+        'itemid' => $itemid,
+        'sesskey' => sesskey(),
+    ]))->out_as_local_url(false);
+}
 
 // Add JavaScript for payment processing.
 $PAGE->requires->js_call_amd('paygw_webirr/payment', 'init', [
@@ -36,6 +47,7 @@ $PAGE->requires->js_call_amd('paygw_webirr/payment', 'init', [
     $description,
     sesskey(),
     [
+        'readyforcheckout' => get_string('readyforcheckout', 'paygw_webirr'),
         'creatingpaymentcode' => get_string('creatingpaymentcode', 'paygw_webirr'),
         'webirrpaymentcode' => get_string('webirrpaymentcode', 'paygw_webirr'),
         'usepaymentcode' => get_string('usepaymentcode', 'paygw_webirr'),
@@ -69,43 +81,25 @@ echo html_writer::end_div();
 echo html_writer::start_div('webirr-layout');
 
 echo html_writer::start_tag('section', ['class' => 'webirr-panel']);
-echo html_writer::tag('div', 'Checkout', ['class' => 'webirr-panel-title']);
+echo html_writer::tag('div', get_string('checkout', 'paygw_webirr'), ['class' => 'webirr-panel-title']);
 
-echo html_writer::start_div('webirr-field');
-echo html_writer::tag('label', get_string('customer', 'paygw_webirr'), ['for' => 'webirr-customer']);
-echo html_writer::empty_tag('input', [
-    'id' => 'webirr-customer',
-    'class' => 'webirr-readonly-input',
-    'value' => $customername,
-    'readonly' => 'readonly',
-]);
-echo html_writer::end_div();
-
-echo html_writer::start_div('webirr-field');
-echo html_writer::tag('label', get_string('amount', 'paygw_webirr'), ['for' => 'webirr-amount']);
-echo html_writer::empty_tag('input', [
-    'id' => 'webirr-amount',
-    'class' => 'webirr-readonly-input',
-    'value' => $displayamount,
-    'readonly' => 'readonly',
-    'data-currency' => $currency,
-]);
-echo html_writer::end_div();
-
-echo html_writer::start_div('webirr-field');
-echo html_writer::tag('label', 'Description', ['for' => 'webirr-description']);
-echo html_writer::empty_tag('input', [
-    'id' => 'webirr-description',
-    'class' => 'webirr-readonly-input',
-    'value' => $description,
-    'readonly' => 'readonly',
-]);
-echo html_writer::end_div();
+echo html_writer::start_tag('dl', ['class' => 'webirr-summary']);
+echo html_writer::tag('dt', get_string('customer', 'paygw_webirr'));
+echo html_writer::tag('dd', s($customername));
+echo html_writer::tag('dt', get_string('amount', 'paygw_webirr'));
+echo html_writer::tag('dd', s($displayamountwithcurrency));
+echo html_writer::tag('dt', get_string('description', 'paygw_webirr'));
+echo html_writer::tag('dd', s($description));
+echo html_writer::end_tag('dl');
 
 echo html_writer::start_div('webirr-button-row');
-echo html_writer::tag('button', 'Checkout', [
+echo html_writer::tag('button', get_string('checkout', 'paygw_webirr'), [
     'type' => 'button',
     'class' => 'webirr-primary-button',
+    'id' => 'webirr-checkout-button',
+]);
+echo html_writer::link(new moodle_url($cancelurl), get_string('cancel'), [
+    'class' => 'webirr-secondary-button',
 ]);
 echo html_writer::end_div();
 echo html_writer::end_tag('section');

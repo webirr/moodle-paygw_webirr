@@ -464,6 +464,24 @@ function render_page(): void {
         .field {
             margin-bottom: 14px;
         }
+        .summary {
+            display: grid;
+            grid-template-columns: 120px minmax(0, 1fr);
+            gap: 10px 14px;
+            margin: 0;
+            padding: 0;
+        }
+        .summary dt {
+            color: var(--muted);
+            font-size: 14px;
+            font-weight: 600;
+        }
+        .summary dd {
+            margin: 0;
+            color: var(--ink);
+            font-weight: 700;
+            overflow-wrap: anywhere;
+        }
         .button-row {
             display: flex;
             flex-wrap: wrap;
@@ -491,9 +509,18 @@ function render_page(): void {
             background: var(--primary-dark);
         }
         .secondary {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 40px;
+            border-radius: 6px;
+            padding: 9px 14px;
             background: white;
-            color: var(--primary);
-            border-color: #9cc3e7;
+            color: var(--ink);
+            border: 1px solid var(--line);
+            font: inherit;
+            font-weight: 600;
+            text-decoration: none;
         }
         .payment-code {
             display: none;
@@ -602,33 +629,59 @@ function render_page(): void {
             font-weight: 600;
             overflow-wrap: anywhere;
         }
-        .confirmation-receipt {
-            display: none;
-            text-align: center;
+        .webirr-success-card {
+            max-width: 560px;
+            margin: 24px 0;
+            padding: 24px;
+            border: 1px solid #d7eadc;
+            border-radius: 8px;
+            background: #f2fbf5;
         }
-        .confirmation-mark {
+        .webirr-success-check {
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            width: 54px;
-            height: 54px;
+            width: 42px;
+            height: 42px;
             margin-bottom: 12px;
             border-radius: 50%;
-            background: var(--success-bg);
-            border: 2px solid var(--success-border);
-            color: var(--success-border);
-            font-size: 30px;
-            font-weight: 800;
-            line-height: 1;
+            background: #198754;
+            color: #fff;
+            font-size: 24px;
+            font-weight: 700;
         }
-        .confirmation-title {
-            margin: 0 0 16px;
-            font-size: 18px;
-            font-weight: 800;
+        .webirr-success-card h3 {
+            margin: 0 0 18px;
+        }
+        .webirr-success-row {
+            display: flex;
+            justify-content: space-between;
+            gap: 16px;
+            padding: 10px 0;
+            border-top: 1px solid #d7eadc;
+        }
+        .webirr-success-label {
+            color: #555;
+            font-weight: 600;
+        }
+        .webirr-success-value {
+            font-weight: 700;
+            text-align: right;
+            overflow-wrap: anywhere;
+        }
+        .webirr-success-page-title {
+            margin: 0 0 12px;
+            font-size: 24px;
+            font-weight: 700;
             letter-spacing: 0;
         }
-        .confirmation-receipt .record {
-            text-align: left;
+        .webirr-success-continue {
+            display: flex;
+            justify-content: center;
+            margin-top: 20px;
+        }
+        .confirmation-receipt {
+            display: none;
         }
         .journey-panel {
             min-height: 360px;
@@ -637,11 +690,16 @@ function render_page(): void {
             display: block;
         }
         .journey-confirmed {
-            padding-top: 18px;
-            text-align: center;
+            min-height: 360px;
         }
-        .journey-confirmed .record {
-            text-align: left;
+        .journey-confirmed .webirr-success-card {
+            max-width: none;
+            margin: 0;
+            padding: 22px;
+        }
+        .journey-confirmed .webirr-success-page-title {
+            font-size: 22px;
+            line-height: 1.2;
         }
         @media (max-width: 980px) {
             .layout,
@@ -673,20 +731,17 @@ function render_page(): void {
         <div class="journey-layout">
             <section class="panel journey-panel">
                 <div class="panel-title">Checkout</div>
-                <div class="field">
-                    <label>Customer</label>
-                    <input value="Elias" readonly>
-                </div>
-                <div class="field">
-                    <label>Amount</label>
-                    <input value="530.00" readonly>
-                </div>
-                <div class="field">
-                    <label>Description</label>
-                    <input value="moodle course enrollment" readonly>
-                </div>
+                <dl class="summary">
+                    <dt>Customer</dt>
+                    <dd>Elias</dd>
+                    <dt>Amount</dt>
+                    <dd>530.00 ETB</dd>
+                    <dt>Description</dt>
+                    <dd>moodle course enrollment</dd>
+                </dl>
                 <div class="button-row">
                     <button class="primary" type="button">Checkout</button>
+                    <a class="secondary" href="#">Cancel</a>
                 </div>
             </section>
             <div class="journey-arrow" aria-hidden="true">&rarr;</div>
@@ -714,14 +769,22 @@ function render_page(): void {
             </section>
             <div class="journey-arrow" aria-hidden="true">&rarr;</div>
             <section class="panel journey-panel journey-confirmed">
-                <div class="confirmation-mark" aria-hidden="true">&#10003;</div>
-                <div class="confirmation-title">Payment Confirmed</div>
-                <dl class="record">
-                    <dt>Payment Reference</dt>
-                    <dd>TX70e78862148f4c249606</dd>
-                    <dt>Paid Via</dt>
-                    <dd>CBE Mobile</dd>
-                </dl>
+                <h2 class="webirr-success-page-title">Your payment was successful.</h2>
+                <div class="webirr-success-card">
+                    <div class="webirr-success-check" aria-hidden="true">&#10003;</div>
+                    <h3>Payment Confirmed</h3>
+                    <div class="webirr-success-row">
+                        <span class="webirr-success-label">Payment Reference</span>
+                        <span class="webirr-success-value">TX70e78862148f4c249606</span>
+                    </div>
+                    <div class="webirr-success-row">
+                        <span class="webirr-success-label">Paid Via</span>
+                        <span class="webirr-success-value">CBE Mobile</span>
+                    </div>
+                </div>
+                <div class="webirr-success-continue">
+                    <button class="primary" type="button">Continue</button>
+                </div>
             </section>
         </div>
         <?php } else { ?>
@@ -773,14 +836,22 @@ function render_page(): void {
                     </dl>
                 </div>
                 <div class="confirmation-receipt" id="confirmationReceipt">
-                    <div class="confirmation-mark" aria-hidden="true">&#10003;</div>
-                    <div class="confirmation-title">Payment Confirmed</div>
-                    <dl class="record">
-                        <dt>Payment Reference</dt>
-                        <dd id="confirmationPaymentReference"></dd>
-                        <dt>Paid Via</dt>
-                        <dd id="confirmationPaymentIssuer"></dd>
-                    </dl>
+                    <h2 class="webirr-success-page-title">Your payment was successful.</h2>
+                    <div class="webirr-success-card">
+                        <div class="webirr-success-check" aria-hidden="true">&#10003;</div>
+                        <h3>Payment Confirmed</h3>
+                        <div class="webirr-success-row">
+                            <span class="webirr-success-label">Payment Reference</span>
+                            <span class="webirr-success-value" id="confirmationPaymentReference"></span>
+                        </div>
+                        <div class="webirr-success-row">
+                            <span class="webirr-success-label">Paid Via</span>
+                            <span class="webirr-success-value" id="confirmationPaymentIssuer"></span>
+                        </div>
+                    </div>
+                    <div class="webirr-success-continue">
+                        <button class="primary" type="button">Continue</button>
+                    </div>
                 </div>
             </section>
         </div>
