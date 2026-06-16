@@ -63,7 +63,9 @@ function create_bill(): void {
     $customername = trim((string)($payload['customerName'] ?? 'Elias'));
     $customerphone = trim((string)($payload['customerPhone'] ?? ''));
     $description = trim((string)($payload['description'] ?? 'moodle course enrollment'));
-    $billreference = 'moodle_demo_' . date('YmdHis') . '_' . bin2hex(random_bytes(3));
+    $merchantreference = normalize_merchant_reference((string)($payload['merchantReference'] ?? default_merchant_reference()));
+    $billreference = build_demo_bill_reference($merchantreference);
+    $detailshash = details_hash($customername, $amount, $description);
 
     $bill = new stdClass();
     $bill->amount = $amount;
@@ -75,6 +77,57 @@ function create_bill(): void {
     $bill->billReference = $billreference;
 
     $client = create_webirr_client();
+    $db = demo_db();
+    $existing = find_demo_payment($db, $billreference);
+
+    if ($existing && !empty($existing['payment_code'])) {
+        $payment = reuse_demo_payment($db, $existing, $bill, $merchantreference, $detailshash, $client);
+        json_response(payment_code_response($payment, $payment['operation'] ?? 'reused'));
+    }
+
+    $recovered = $client->get_bill_by_reference($billreference);
+    if (empty($recovered->error)) {
+        $paymentcode = extract_bill_payment_code($recovered);
+        if ($paymentcode === '') {
+            json_response(['success' => false, 'error' => 'Invalid bill lookup response from WeBirr'], 502);
+        }
+
+        $status = extract_bill_status($recovered);
+        $operation = 'recovered';
+        if ($status !== 2 && bill_details_changed($recovered, $bill)) {
+            $updated = $client->update_bill($bill);
+            if (!empty($updated->error)) {
+                json_response([
+                    'success' => false,
+                    'error' => $updated->error,
+                    'errorCode' => $updated->errorCode ?? null,
+                ], 502);
+            }
+            $operation = 'updated';
+        }
+
+        $payment = save_demo_payment(
+            $db,
+            null,
+            $merchantreference,
+            $billreference,
+            $paymentcode,
+            $amount,
+            $bill->customerName,
+            $description,
+            $detailshash,
+            $status
+        );
+        $payment['operation'] = $operation;
+        json_response(payment_code_response($payment, $operation));
+    } else if (is_transport_error($recovered->error)) {
+        json_response([
+            'success' => false,
+            'error' => $recovered->error,
+            'errorCode' => $recovered->errorCode ?? null,
+        ], 502);
+    }
+
     $result = $client->create_bill($bill);
 
     if (!empty($result->error)) {
@@ -86,32 +139,20 @@ function create_bill(): void {
     }
 
     $paymentcode = (string)$result->res;
-    $db = demo_db();
-    $stmt = $db->prepare(
-        'INSERT INTO demo_payments
-            (bill_reference, payment_code, amount, customer_name, status, created_at, updated_at)
-         VALUES
-            (:bill_reference, :payment_code, :amount, :customer_name, 0, :created_at, :updated_at)'
+    $payment = save_demo_payment(
+        $db,
+        null,
+        $merchantreference,
+        $billreference,
+        $paymentcode,
+        $amount,
+        $bill->customerName,
+        $description,
+        $detailshash,
+        0
     );
-    $now = gmdate('c');
-    $stmt->execute([
-        ':bill_reference' => $billreference,
-        ':payment_code' => $paymentcode,
-        ':amount' => $amount,
-        ':customer_name' => $bill->customerName,
-        ':created_at' => $now,
-        ':updated_at' => $now,
-    ]);
-
-    json_response([
-        'success' => true,
-        'paymentId' => (int)$db->lastInsertId(),
-        'paymentCode' => $paymentcode,
-        'billReference' => $billreference,
-        'merchantReference' => 'pnr/2026/12/72627836',
-        'amount' => $amount,
-        'status' => 0,
-    ]);
+    $payment['operation'] = 'created';
+    json_response(payment_code_response($payment, 'created'));
 }
 
 function payment_status(): void {
@@ -171,6 +212,255 @@ function payment_status(): void {
         'paymentReference' => $paymentreference,
         'paymentIssuer' => $paymentissuer,
     ]);
+}
+
+function reuse_demo_payment(
+    PDO $db,
+    array $existing,
+    stdClass $bill,
+    string $merchantreference,
+    string $detailshash,
+    webirr_client $client
+): array {
+    $operation = 'reused';
+    $status = (int)$existing['status'];
+    $existinghash = (string)($existing['details_hash'] ?? '');
+
+    if ($status !== 2 && $existinghash !== $detailshash) {
+        $statusresult = $client->get_payment_status((string)$existing['payment_code']);
+        if (!empty($statusresult->error)) {
+            throw new RuntimeException((string)$statusresult->error);
+        }
+
+        $status = extract_payment_status($statusresult);
+        if ($status === 2) {
+            update_demo_payment_status($db, (int)$existing['id'], $status, $statusresult);
+            $payment = find_demo_payment($db, (string)$existing['bill_reference']);
+            if (!$payment) {
+                throw new RuntimeException('Payment record not found after status update.');
+            }
+            $payment['operation'] = 'reused';
+            return $payment;
+        }
+
+        $bill->billReference = (string)$existing['bill_reference'];
+        $updated = $client->update_bill($bill);
+        if (!empty($updated->error)) {
+            throw new RuntimeException((string)$updated->error);
+        }
+
+        $operation = 'updated';
+        $existing = save_demo_payment(
+            $db,
+            $existing,
+            $merchantreference,
+            (string)$existing['bill_reference'],
+            (string)$existing['payment_code'],
+            (string)$bill->amount,
+            (string)$bill->customerName,
+            (string)$bill->description,
+            $detailshash,
+            $status
+        );
+    }
+
+    $existing['operation'] = $operation;
+    return $existing;
+}
+
+function payment_code_response(array $payment, string $operation): array {
+    return [
+        'success' => true,
+        'paymentId' => (int)$payment['id'],
+        'paymentCode' => (string)$payment['payment_code'],
+        'billReference' => (string)$payment['bill_reference'],
+        'merchantReference' => (string)$payment['merchant_reference'],
+        'amount' => (string)$payment['amount'],
+        'status' => (int)$payment['status'],
+        'operation' => $operation,
+    ];
+}
+
+function find_demo_payment(PDO $db, string $billreference): ?array {
+    $stmt = $db->prepare('SELECT * FROM demo_payments WHERE bill_reference = :bill_reference');
+    $stmt->execute([':bill_reference' => $billreference]);
+    $record = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    return is_array($record) ? $record : null;
+}
+
+function save_demo_payment(
+    PDO $db,
+    ?array $existing,
+    string $merchantreference,
+    string $billreference,
+    string $paymentcode,
+    string $amount,
+    string $customername,
+    string $description,
+    string $detailshash,
+    int $status
+): array {
+    $now = gmdate('c');
+
+    if ($existing) {
+        $stmt = $db->prepare(
+            'UPDATE demo_payments
+                SET merchant_reference = :merchant_reference,
+                    payment_code = :payment_code,
+                    amount = :amount,
+                    customer_name = :customer_name,
+                    description = :description,
+                    details_hash = :details_hash,
+                    status = :status,
+                    updated_at = :updated_at
+              WHERE id = :id'
+        );
+        $stmt->execute([
+            ':id' => (int)$existing['id'],
+            ':merchant_reference' => $merchantreference,
+            ':payment_code' => $paymentcode,
+            ':amount' => $amount,
+            ':customer_name' => $customername,
+            ':description' => $description,
+            ':details_hash' => $detailshash,
+            ':status' => $status,
+            ':updated_at' => $now,
+        ]);
+    } else {
+        $stmt = $db->prepare(
+            'INSERT INTO demo_payments
+                (merchant_reference, bill_reference, payment_code, amount, customer_name, description, details_hash, status, created_at, updated_at)
+             VALUES
+                (:merchant_reference, :bill_reference, :payment_code, :amount, :customer_name, :description, :details_hash, :status, :created_at, :updated_at)'
+        );
+        $stmt->execute([
+            ':merchant_reference' => $merchantreference,
+            ':bill_reference' => $billreference,
+            ':payment_code' => $paymentcode,
+            ':amount' => $amount,
+            ':customer_name' => $customername,
+            ':description' => $description,
+            ':details_hash' => $detailshash,
+            ':status' => $status,
+            ':created_at' => $now,
+            ':updated_at' => $now,
+        ]);
+    }
+
+    $payment = find_demo_payment($db, $billreference);
+    if (!$payment) {
+        throw new RuntimeException('Payment record was not saved.');
+    }
+
+    return $payment;
+}
+
+function update_demo_payment_status(PDO $db, int $paymentid, int $status, object $rawstatus): void {
+    $stmt = $db->prepare(
+        'UPDATE demo_payments
+            SET status = :status, raw_status = :raw_status, updated_at = :updated_at
+          WHERE id = :id'
+    );
+    $stmt->execute([
+        ':id' => $paymentid,
+        ':status' => $status,
+        ':raw_status' => json_encode($rawstatus, JSON_UNESCAPED_SLASHES),
+        ':updated_at' => gmdate('c'),
+    ]);
+}
+
+function normalize_merchant_reference(string $merchantreference): string {
+    $merchantreference = trim($merchantreference);
+
+    return $merchantreference !== '' ? $merchantreference : default_merchant_reference();
+}
+
+function default_merchant_reference(): string {
+    return 'pnr/' . date('Y/m/d') . '/72627836';
+}
+
+function build_demo_bill_reference(string $merchantreference): string {
+    $slug = strtolower((string)preg_replace('/[^A-Za-z0-9]+/', '_', $merchantreference));
+    $slug = trim($slug, '_');
+    if ($slug === '') {
+        $slug = 'payable_' . date('Ymd');
+    }
+
+    return 'moodle_demo_' . $slug;
+}
+
+function details_hash(string $customername, string $amount, string $description): string {
+    return hash('sha256', implode("\n", [$customername, $amount, $description]));
+}
+
+function extract_bill_payment_code(object $result): string {
+    if (isset($result->res) && !is_object($result->res) && !is_array($result->res)) {
+        return trim((string)$result->res);
+    }
+
+    foreach (['wbcCode', 'paymentCode', 'wbc_code', 'paymentcode'] as $key) {
+        $value = extract_bill_value($result, $key);
+        if ($value !== '') {
+            return $value;
+        }
+    }
+
+    return '';
+}
+
+function extract_bill_status(object $result): int {
+    foreach (['paymentStatus', 'status'] as $key) {
+        $value = extract_bill_value($result, $key);
+        if ($value !== '') {
+            return (int)$value;
+        }
+    }
+
+    return 0;
+}
+
+function extract_payment_status(object $result): int {
+    if (isset($result->res) && is_object($result->res) && isset($result->res->status)) {
+        return (int)$result->res->status;
+    }
+
+    return extract_bill_status($result);
+}
+
+function bill_details_changed(object $result, stdClass $bill): bool {
+    $amount = extract_bill_value($result, 'amount');
+    if ($amount !== '' && format_amount($amount) !== (string)$bill->amount) {
+        return true;
+    }
+
+    $customername = extract_bill_value($result, 'customerName');
+    if ($customername !== '' && $customername !== (string)$bill->customerName) {
+        return true;
+    }
+
+    $description = extract_bill_value($result, 'description');
+    if ($description !== '' && $description !== (string)$bill->description) {
+        return true;
+    }
+
+    return false;
+}
+
+function extract_bill_value(object $result, string $key): string {
+    if (isset($result->res) && is_object($result->res) && isset($result->res->$key)) {
+        return trim((string)$result->res->$key);
+    }
+
+    if (isset($result->$key)) {
+        return trim((string)$result->$key);
+    }
+
+    return '';
+}
+
+function is_transport_error(string $error): bool {
+    return preg_match('/^(http error|invalid response|Moodle curl class|Unable to encode)/i', $error) === 1;
 }
 
 function extract_payment_reference(object $result): string {
@@ -300,18 +590,35 @@ function demo_db(): PDO {
     $db->exec(
         'CREATE TABLE IF NOT EXISTS demo_payments (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            merchant_reference TEXT NOT NULL DEFAULT "",
             bill_reference TEXT NOT NULL UNIQUE,
             payment_code TEXT NOT NULL,
             amount TEXT NOT NULL,
             customer_name TEXT NOT NULL,
+            description TEXT NOT NULL DEFAULT "",
+            details_hash TEXT NOT NULL DEFAULT "",
             status INTEGER NOT NULL DEFAULT 0,
             raw_status TEXT,
             created_at TEXT NOT NULL,
             updated_at TEXT NOT NULL
         )'
     );
+    ensure_demo_column($db, 'merchant_reference', 'TEXT NOT NULL DEFAULT ""');
+    ensure_demo_column($db, 'description', 'TEXT NOT NULL DEFAULT ""');
+    ensure_demo_column($db, 'details_hash', 'TEXT NOT NULL DEFAULT ""');
 
     return $db;
+}
+
+function ensure_demo_column(PDO $db, string $column, string $definition): void {
+    $columns = $db->query('PRAGMA table_info(demo_payments)')->fetchAll(PDO::FETCH_ASSOC);
+    foreach ($columns as $existing) {
+        if (($existing['name'] ?? '') === $column) {
+            return;
+        }
+    }
+
+    $db->exec('ALTER TABLE demo_payments ADD COLUMN ' . $column . ' ' . $definition);
 }
 
 function read_json_payload(): array {
@@ -346,6 +653,7 @@ function json_response(array $payload, int $status = 200): void {
 
 function render_page(): void {
     $preview = (string)($_GET['preview'] ?? '');
+    $defaultmerchantreference = default_merchant_reference();
     ?>
 <!doctype html>
 <html lang="en">
@@ -419,9 +727,16 @@ function render_page(): void {
             grid-template-columns: repeat(2, minmax(0, 1fr));
             gap: 18px;
         }
+        .checkout-stage {
+            max-width: 680px;
+            margin: 0 auto;
+        }
+        .stage-panel[hidden] {
+            display: none;
+        }
         .journey-layout {
             display: grid;
-            grid-template-columns: minmax(0, 1fr) 26px minmax(0, 1fr) 26px minmax(0, 1fr);
+            grid-template-columns: minmax(0, 0.85fr) 24px minmax(0, 0.85fr) 24px minmax(280px, 1.25fr) 24px minmax(0, 1.05fr);
             gap: 8px;
             align-items: stretch;
         }
@@ -463,6 +778,11 @@ function render_page(): void {
         }
         .field {
             margin-bottom: 14px;
+        }
+        .field-hint {
+            margin-top: 5px;
+            color: var(--muted);
+            font-size: 12px;
         }
         .summary {
             display: grid;
@@ -680,14 +1000,43 @@ function render_page(): void {
             justify-content: center;
             margin-top: 20px;
         }
-        .confirmation-receipt {
-            display: none;
-        }
         .journey-panel {
             min-height: 360px;
         }
+        .journey-panel .summary {
+            grid-template-columns: 1fr;
+            gap: 4px;
+        }
+        .journey-panel .summary dt {
+            font-size: 13px;
+        }
+        .journey-panel .summary dd {
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
         .journey-panel .payment-code {
             display: block;
+        }
+        .journey-panel .payment-instruction-list {
+            padding: 10px;
+            font-size: 12px;
+        }
+        .journey-panel .payment-instruction-item {
+            display: block;
+        }
+        .journey-panel .payment-instruction-channel {
+            min-width: 0;
+        }
+        .journey-panel .payment-instruction-arrow {
+            margin: 0 4px;
+        }
+        .journey-panel .record {
+            grid-template-columns: 1fr;
+            gap: 3px;
+            font-size: 13px;
+        }
+        .journey-panel .record dd {
+            margin-bottom: 8px;
         }
         .journey-confirmed {
             min-height: 360px;
@@ -700,6 +1049,9 @@ function render_page(): void {
         .journey-confirmed .webirr-success-page-title {
             font-size: 22px;
             line-height: 1.2;
+        }
+        .journey-confirmed .webirr-success-value {
+            font-size: 13px;
         }
         @media (max-width: 980px) {
             .layout,
@@ -730,6 +1082,23 @@ function render_page(): void {
         <?php if ($preview === 'journey') { ?>
         <div class="journey-layout">
             <section class="panel journey-panel">
+                <div class="panel-title">Demo Data Entry</div>
+                <dl class="summary">
+                    <dt>Customer</dt>
+                    <dd>Elias</dd>
+                    <dt>Amount</dt>
+                    <dd>530.00 ETB</dd>
+                    <dt>Description</dt>
+                    <dd>moodle course enrollment</dd>
+                    <dt>Reference</dt>
+                    <dd><?php echo htmlspecialchars($defaultmerchantreference, ENT_QUOTES, 'UTF-8'); ?></dd>
+                </dl>
+                <div class="button-row">
+                    <button class="primary" type="button">Continue</button>
+                </div>
+            </section>
+            <div class="journey-arrow" aria-hidden="true">&rarr;</div>
+            <section class="panel journey-panel">
                 <div class="panel-title">Checkout</div>
                 <dl class="summary">
                     <dt>Customer</dt>
@@ -738,6 +1107,8 @@ function render_page(): void {
                     <dd>530.00 ETB</dd>
                     <dt>Description</dt>
                     <dd>moodle course enrollment</dd>
+                    <dt>Reference</dt>
+                    <dd><?php echo htmlspecialchars($defaultmerchantreference, ENT_QUOTES, 'UTF-8'); ?></dd>
                 </dl>
                 <div class="button-row">
                     <button class="primary" type="button">Checkout</button>
@@ -759,10 +1130,11 @@ function render_page(): void {
                     <div class="payment-instruction-item"><span class="payment-instruction-channel">Awash Birr</span><span class="payment-instruction-arrow">-&gt;</span><span class="payment-instruction-target">WeBirr</span><span class="payment-instruction-arrow">-&gt;</span><span class="payment-instruction-target">Payment Code</span></div>
                     <div class="payment-instruction-item"><span class="payment-instruction-channel">Telebirr</span><span class="payment-instruction-arrow">-&gt;</span><span class="payment-instruction-target">WeBirr</span><span class="payment-instruction-arrow">-&gt;</span><span class="payment-instruction-target">Payment Code</span></div>
                     <div class="payment-instruction-item"><span class="payment-instruction-channel">M-Pesa</span><span class="payment-instruction-arrow">-&gt;</span><span class="payment-instruction-target">WeBirr</span><span class="payment-instruction-arrow">-&gt;</span><span class="payment-instruction-target">Payment Code</span></div>
+                    <div class="payment-instruction-item"><span class="payment-instruction-channel">Coopay Ebirr</span><span class="payment-instruction-arrow">-&gt;</span><span class="payment-instruction-target">WeBirr</span><span class="payment-instruction-arrow">-&gt;</span><span class="payment-instruction-target">Payment Code</span></div>
                 </div>
                 <dl class="record">
                     <dt>Merchant reference</dt>
-                    <dd>pnr/2026/12/72627836</dd>
+                    <dd><?php echo htmlspecialchars($defaultmerchantreference, ENT_QUOTES, 'UTF-8'); ?></dd>
                     <dt>Payment Status</dt>
                     <dd>pending</dd>
                 </dl>
@@ -788,9 +1160,9 @@ function render_page(): void {
             </section>
         </div>
         <?php } else { ?>
-        <div class="layout">
-            <section class="panel">
-                <div class="panel-title">Checkout</div>
+        <div class="checkout-stage">
+            <section class="panel stage-panel" id="entryPanel">
+                <div class="panel-title">Demo Data Entry</div>
                 <div class="field">
                     <label for="customerName">Customer</label>
                     <input id="customerName" value="Elias" autocomplete="name">
@@ -803,18 +1175,42 @@ function render_page(): void {
                     <label for="description">Description</label>
                     <input id="description" value="moodle course enrollment">
                 </div>
+                <div class="field">
+                    <label for="merchantReferenceInput">Merchant Reference</label>
+                    <input id="merchantReferenceInput" value="<?php echo htmlspecialchars($defaultmerchantreference, ENT_QUOTES, 'UTF-8'); ?>">
+                    <div class="field-hint">This is the stable payable reference used for retry and recovery.</div>
+                </div>
                 <div class="button-row">
-                    <button class="primary" id="createBill">Checkout</button>
+                    <button class="primary" id="continueCheckout" type="button">Continue</button>
                 </div>
             </section>
 
-            <section class="panel">
+            <section class="panel stage-panel" id="reviewPanel" hidden>
+                <div class="panel-title">Checkout</div>
+                <dl class="summary">
+                    <dt>Customer</dt>
+                    <dd id="reviewCustomer"></dd>
+                    <dt>Amount</dt>
+                    <dd id="reviewAmount"></dd>
+                    <dt>Description</dt>
+                    <dd id="reviewDescription"></dd>
+                    <dt>Reference</dt>
+                    <dd id="reviewMerchantReference"></dd>
+                </dl>
+                <div class="button-row">
+                    <button class="primary" id="createBill" type="button">Checkout</button>
+                    <button class="secondary" id="backToEntry" type="button">Back</button>
+                    <button class="secondary" id="cancelCheckout" type="button">Cancel</button>
+                </div>
+            </section>
+
+            <section class="panel stage-panel" id="paymentPanel" hidden>
                 <div id="pendingReceipt">
                     <div class="payment-code-title" id="paymentCodeTitle">WeBirr Payment Code</div>
                     <div class="payment-code" id="paymentCode"></div>
                     <div class="status" id="statusBox">
                         <span class="status-spinner" id="statusSpinner" aria-hidden="true"></span>
-                        <span id="statusText">Create a bill to start the checkout flow.</span>
+                        <span id="statusText">Creating payment code...</span>
                     </div>
                     <div class="payment-instruction-list">
                         <div class="payment-instruction-title">Payment Instruction</div>
@@ -823,6 +1219,7 @@ function render_page(): void {
                         <div class="payment-instruction-item"><span class="payment-instruction-channel">Awash Birr</span><span class="payment-instruction-arrow">-&gt;</span><span class="payment-instruction-target">WeBirr</span><span class="payment-instruction-arrow">-&gt;</span><span class="payment-instruction-target">Payment Code</span></div>
                         <div class="payment-instruction-item"><span class="payment-instruction-channel">Telebirr</span><span class="payment-instruction-arrow">-&gt;</span><span class="payment-instruction-target">WeBirr</span><span class="payment-instruction-arrow">-&gt;</span><span class="payment-instruction-target">Payment Code</span></div>
                         <div class="payment-instruction-item"><span class="payment-instruction-channel">M-Pesa</span><span class="payment-instruction-arrow">-&gt;</span><span class="payment-instruction-target">WeBirr</span><span class="payment-instruction-arrow">-&gt;</span><span class="payment-instruction-target">Payment Code</span></div>
+                        <div class="payment-instruction-item"><span class="payment-instruction-channel">Coopay Ebirr</span><span class="payment-instruction-arrow">-&gt;</span><span class="payment-instruction-target">WeBirr</span><span class="payment-instruction-arrow">-&gt;</span><span class="payment-instruction-target">Payment Code</span></div>
                     </div>
                     <div class="meta" id="statusMeta"></div>
                     <div class="button-row" id="statusActions" style="display: none;">
@@ -835,23 +1232,24 @@ function render_page(): void {
                         <dd id="paymentStatus">pending</dd>
                     </dl>
                 </div>
-                <div class="confirmation-receipt" id="confirmationReceipt">
-                    <h2 class="webirr-success-page-title">Your payment was successful.</h2>
-                    <div class="webirr-success-card">
-                        <div class="webirr-success-check" aria-hidden="true">&#10003;</div>
-                        <h3>Payment Confirmed</h3>
-                        <div class="webirr-success-row">
-                            <span class="webirr-success-label">Payment Reference</span>
-                            <span class="webirr-success-value" id="confirmationPaymentReference"></span>
-                        </div>
-                        <div class="webirr-success-row">
-                            <span class="webirr-success-label">Paid Via</span>
-                            <span class="webirr-success-value" id="confirmationPaymentIssuer"></span>
-                        </div>
+            </section>
+
+            <section class="panel stage-panel confirmation-receipt" id="confirmationReceipt" hidden>
+                <h2 class="webirr-success-page-title">Your payment was successful.</h2>
+                <div class="webirr-success-card">
+                    <div class="webirr-success-check" aria-hidden="true">&#10003;</div>
+                    <h3>Payment Confirmed</h3>
+                    <div class="webirr-success-row">
+                        <span class="webirr-success-label">Payment Reference</span>
+                        <span class="webirr-success-value" id="confirmationPaymentReference"></span>
                     </div>
-                    <div class="webirr-success-continue">
-                        <button class="primary" type="button">Continue</button>
+                    <div class="webirr-success-row">
+                        <span class="webirr-success-label">Paid Via</span>
+                        <span class="webirr-success-value" id="confirmationPaymentIssuer"></span>
                     </div>
+                </div>
+                <div class="webirr-success-continue">
+                    <button class="primary" id="startOver" type="button">Continue</button>
                 </div>
             </section>
         </div>
@@ -861,10 +1259,18 @@ function render_page(): void {
     <script>
         const state = {
             paymentId: null,
-            timer: null
+            timer: null,
+            checkout: null
         };
         const delayMs = 5000;
+        const entryPanel = document.getElementById('entryPanel');
+        const reviewPanel = document.getElementById('reviewPanel');
+        const paymentPanel = document.getElementById('paymentPanel');
+        const continueButton = document.getElementById('continueCheckout');
         const createButton = document.getElementById('createBill');
+        const backButton = document.getElementById('backToEntry');
+        const cancelButton = document.getElementById('cancelCheckout');
+        const startOverButton = document.getElementById('startOver');
         const refreshButton = document.getElementById('refreshStatus');
         const actions = document.getElementById('statusActions');
         const statusBox = document.getElementById('statusBox');
@@ -879,7 +1285,11 @@ function render_page(): void {
         const confirmationPaymentReference = document.getElementById('confirmationPaymentReference');
         const confirmationPaymentIssuer = document.getElementById('confirmationPaymentIssuer');
 
+        continueButton.addEventListener('click', showReview);
         createButton.addEventListener('click', createBill);
+        backButton.addEventListener('click', showEntry);
+        cancelButton.addEventListener('click', showEntry);
+        startOverButton.addEventListener('click', showEntry);
         refreshButton.addEventListener('click', () => checkStatus(false));
 
         if (new URLSearchParams(window.location.search).get('preview') === 'confirmed') {
@@ -889,6 +1299,38 @@ function render_page(): void {
             });
         }
 
+        function showReview() {
+            state.checkout = collectCheckoutInput();
+            document.getElementById('reviewCustomer').textContent = state.checkout.customerName;
+            document.getElementById('reviewAmount').textContent = state.checkout.amount + ' ETB';
+            document.getElementById('reviewDescription').textContent = state.checkout.description;
+            document.getElementById('reviewMerchantReference').textContent = state.checkout.merchantReference;
+            showScreen('review');
+        }
+
+        function showEntry() {
+            window.clearTimeout(state.timer);
+            state.paymentId = null;
+            state.checkout = null;
+            paymentCode.textContent = '';
+            paymentCode.style.display = 'none';
+            record.style.display = 'none';
+            actions.style.display = 'none';
+            statusMeta.textContent = '';
+            setBusy(false);
+            setActionBusy(false);
+            showScreen('entry');
+        }
+
+        function collectCheckoutInput() {
+            const customerName = document.getElementById('customerName').value.trim() || 'Elias';
+            const amount = document.getElementById('amount').value.trim() || '530.00';
+            const description = document.getElementById('description').value.trim() || 'moodle course enrollment';
+            const merchantReference = document.getElementById('merchantReferenceInput').value.trim() || '<?php echo htmlspecialchars($defaultmerchantreference, ENT_QUOTES, 'UTF-8'); ?>';
+
+            return {customerName, amount, description, merchantReference};
+        }
+
         async function createBill() {
             setBusy(true);
             showPendingReceipt();
@@ -896,11 +1338,7 @@ function render_page(): void {
             actions.style.display = 'none';
             statusMeta.textContent = '';
 
-            const response = await postJson('/api/create-bill', {
-                customerName: document.getElementById('customerName').value,
-                amount: document.getElementById('amount').value,
-                description: document.getElementById('description').value
-            });
+            const response = await postJson('/api/create-bill', state.checkout || collectCheckoutInput());
 
             if (!response.success) {
                 setBusy(false);
@@ -917,15 +1355,15 @@ function render_page(): void {
             document.getElementById('paymentStatus').textContent = 'pending';
             showPendingReceipt();
             setBusy(false);
-            waitAndCheck();
+            waitAndCheck(response.operation || 'created');
         }
 
-        function waitAndCheck() {
+        function waitAndCheck(operation) {
             window.clearTimeout(state.timer);
             actions.style.display = 'none';
             setActionBusy(true);
             setStatus('Waiting for payment confirmation...', 'info', true);
-            statusMeta.textContent = '';
+            statusMeta.textContent = operation ? 'Stable reference action: ' + operation : '';
             state.timer = window.setTimeout(() => checkStatus(true), delayMs);
         }
 
@@ -977,6 +1415,9 @@ function render_page(): void {
 
         function setBusy(disabled) {
             createButton.disabled = disabled;
+            continueButton.disabled = disabled;
+            backButton.disabled = disabled;
+            cancelButton.disabled = disabled;
         }
 
         function setActionBusy(disabled) {
@@ -990,18 +1431,24 @@ function render_page(): void {
         }
 
         function showPendingReceipt() {
+            showScreen('payment');
             pendingReceipt.style.display = 'block';
-            confirmationReceipt.style.display = 'none';
             confirmationPaymentReference.textContent = '';
             confirmationPaymentIssuer.textContent = '';
         }
 
         function showConfirmedReceipt(response) {
             window.clearTimeout(state.timer);
-            pendingReceipt.style.display = 'none';
-            confirmationReceipt.style.display = 'block';
+            showScreen('confirmation');
             confirmationPaymentReference.textContent = response.paymentReference || '';
             confirmationPaymentIssuer.textContent = response.paymentIssuer || '';
+        }
+
+        function showScreen(screen) {
+            entryPanel.hidden = screen !== 'entry';
+            reviewPanel.hidden = screen !== 'review';
+            paymentPanel.hidden = screen !== 'payment';
+            confirmationReceipt.hidden = screen !== 'confirmation';
         }
 
         function statusLabel(status) {
