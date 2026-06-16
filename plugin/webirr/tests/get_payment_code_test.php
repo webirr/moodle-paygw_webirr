@@ -70,7 +70,7 @@ final class get_payment_code_test extends \advanced_testcase {
         $this->assertSame('POST', $requests[1]['method']);
         $this->assertStringContainsString('bill_reference=' . rawurlencode($response['billreference']), $requests[0]['url']);
         $this->assertSame($response['billreference'], $requests[1]['payload']['billReference']);
-        $this->assertSame('0305', $requests[1]['payload']['merchantID']);
+        $this->assertSame('test-merchant-id', $requests[1]['payload']['merchantID']);
         $this->assertSame('530.00', $requests[1]['payload']['amount']);
 
         $record = $DB->get_record('paygw_webirr_payments', ['id' => $response['paymentid']], '*', MUST_EXIST);
@@ -286,7 +286,7 @@ final class get_payment_code_test extends \advanced_testcase {
             'gateway' => 'webirr',
             'enabled' => 1,
             'config' => json_encode([
-                'merchantid' => '0305',
+                'merchantid' => 'test-merchant-id',
                 'apikey' => 'test-api-key',
                 'testmode' => true,
             ]),
