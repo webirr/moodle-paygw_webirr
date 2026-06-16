@@ -151,6 +151,132 @@ final class webirr_client_test extends \advanced_testcase {
     }
 
     /**
+     * Bill update should use the canonical unpaid-bill update endpoint.
+     */
+    public function test_update_bill_uses_canonical_endpoint(): void {
+        $requests = [];
+        $client = new webirr_client(
+            'merchant-from-client',
+            'api-key',
+            true,
+            function(string $method, string $url, ?array $payload, array $headers) use (&$requests): array {
+                $requests[] = [
+                    'method' => $method,
+                    'url' => $url,
+                    'payload' => $payload,
+                    'headers' => $headers,
+                ];
+
+                return [
+                    'status' => 200,
+                    'body' => '{"error":null,"res":"OK"}',
+                    'error' => '',
+                ];
+            }
+        );
+
+        $bill = (object)[
+            'amount' => '278.00',
+            'customerCode' => '42',
+            'customerName' => 'Elias',
+            'customerPhone' => '0911000000',
+            'time' => '2026-06-15 10:30',
+            'description' => 'updated enrollment',
+            'billReference' => 'moodle_component_area_1_42_7',
+        ];
+
+        $response = $client->update_bill($bill);
+
+        $this->assertNull($response->error);
+        $this->assertSame('OK', $response->res);
+        $this->assertCount(1, $requests);
+        $this->assertSame('PUT', $requests[0]['method']);
+        $this->assertStringStartsWith('https://api.webirr.net/einvoice/api/bill?', $requests[0]['url']);
+        $this->assertStringContainsString('api_key=api-key', $requests[0]['url']);
+        $this->assertStringContainsString('merchant_id=merchant-from-client', $requests[0]['url']);
+        $this->assertSame('merchant-from-client', $requests[0]['payload']['merchantID']);
+        $this->assertSame('moodle_component_area_1_42_7', $requests[0]['payload']['billReference']);
+        $this->assertSame('278.00', $requests[0]['payload']['amount']);
+        $this->assertSame('0911000000', $requests[0]['payload']['customerPhone']);
+    }
+
+    /**
+     * Bill lookup by reference should use the canonical bill endpoint.
+     */
+    public function test_get_bill_by_reference_uses_canonical_endpoint(): void {
+        $requests = [];
+        $client = new webirr_client(
+            'merchant-from-client',
+            'api-key',
+            true,
+            function(string $method, string $url, ?array $payload, array $headers) use (&$requests): array {
+                $requests[] = [
+                    'method' => $method,
+                    'url' => $url,
+                    'payload' => $payload,
+                    'headers' => $headers,
+                ];
+
+                return [
+                    'status' => 200,
+                    'body' => '{"error":null,"res":{"billReference":"moodle_component_area_1_42_7","wbcCode":"123 456 789"}}',
+                    'error' => '',
+                ];
+            }
+        );
+
+        $response = $client->get_bill_by_reference('moodle_component_area_1_42_7');
+
+        $this->assertNull($response->error);
+        $this->assertSame('123 456 789', $response->res->wbcCode);
+        $this->assertCount(1, $requests);
+        $this->assertSame('GET', $requests[0]['method']);
+        $this->assertNull($requests[0]['payload']);
+        $this->assertStringStartsWith('https://api.webirr.net/einvoice/api/bill?', $requests[0]['url']);
+        $this->assertStringContainsString('api_key=api-key', $requests[0]['url']);
+        $this->assertStringContainsString('merchant_id=merchant-from-client', $requests[0]['url']);
+        $this->assertStringContainsString('bill_reference=moodle_component_area_1_42_7', $requests[0]['url']);
+    }
+
+    /**
+     * Bill lookup by payment code should use wbc_code on the bill endpoint.
+     */
+    public function test_get_bill_by_payment_code_uses_canonical_endpoint(): void {
+        $requests = [];
+        $client = new webirr_client(
+            'merchant-from-client',
+            'api-key',
+            true,
+            function(string $method, string $url, ?array $payload, array $headers) use (&$requests): array {
+                $requests[] = [
+                    'method' => $method,
+                    'url' => $url,
+                    'payload' => $payload,
+                    'headers' => $headers,
+                ];
+
+                return [
+                    'status' => 200,
+                    'body' => '{"error":null,"res":{"billReference":"moodle_component_area_1_42_7","wbcCode":"123 456 789"}}',
+                    'error' => '',
+                ];
+            }
+        );
+
+        $response = $client->get_bill_by_payment_code('123 456 789');
+
+        $this->assertNull($response->error);
+        $this->assertSame('moodle_component_area_1_42_7', $response->res->billReference);
+        $this->assertCount(1, $requests);
+        $this->assertSame('GET', $requests[0]['method']);
+        $this->assertNull($requests[0]['payload']);
+        $this->assertStringStartsWith('https://api.webirr.net/einvoice/api/bill?', $requests[0]['url']);
+        $this->assertStringContainsString('api_key=api-key', $requests[0]['url']);
+        $this->assertStringContainsString('merchant_id=merchant-from-client', $requests[0]['url']);
+        $this->assertStringContainsString('wbc_code=123%20456%20789', $requests[0]['url']);
+    }
+
+    /**
      * HTTP and JSON errors should be normalized to the gateway response shape.
      */
     public function test_transport_errors_are_normalized(): void {

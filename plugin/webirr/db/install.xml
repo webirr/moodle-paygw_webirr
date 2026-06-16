@@ -24,7 +24,7 @@
                 <KEY NAME="userid" TYPE="foreign" FIELDS="userid" REFTABLE="user" REFFIELDS="id"/>
             </KEYS>
             <INDEXES>
-                <INDEX NAME="billreference" UNIQUE="false" FIELDS="billreference"/>
+                <INDEX NAME="billreference" UNIQUE="true" FIELDS="billreference"/>
                 <INDEX NAME="wbc_code" UNIQUE="false" FIELDS="wbc_code"/>
                 <INDEX NAME="paymentid" UNIQUE="false" FIELDS="paymentid"/>
             </INDEXES>

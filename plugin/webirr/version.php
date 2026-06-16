@@ -14,7 +14,7 @@
 defined('MOODLE_INTERNAL') || die();
 
 /** @var stdClass $plugin */
-$plugin->version = 2026061402;          // The current plugin version (Date: YYYYMMDDXX).
+$plugin->version = 2026061500;          // The current plugin version (Date: YYYYMMDDXX).
 $plugin->requires = 2024100700;         // Requires Moodle 4.5 LTS or later.
 $plugin->supported = [405, 502];        // Moodle 4.5 LTS through Moodle 5.2.
 $plugin->component = 'paygw_webirr';    // Full name of the plugin (used for diagnostics).

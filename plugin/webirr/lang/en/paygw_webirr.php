@@ -48,6 +48,7 @@ $string['checkout'] = 'Checkout';
 $string['description'] = 'Description';
 $string['gatewaynotavailable'] = 'WeBirr gateway is not available.';
 $string['gatewaynotconfigured'] = 'WeBirr gateway is not configured.';
+$string['invalidresponse'] = 'WeBirr returned an invalid response.';
 $string['paymentdeliveryfailed'] = 'Payment was confirmed, but Moodle could not complete the order. Please contact site support.';
 $string['privacy:metadata:paygw_webirr'] = 'Stores information about WeBirr payments';
 $string['privacy:metadata:paygw_webirr:userid'] = 'The ID of the user making the payment';

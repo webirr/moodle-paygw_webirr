@@ -53,35 +53,55 @@ external functions:
 
 | Checkout role | Moodle method | Source | WeBirr call |
 | --- | --- | --- | --- |
-| Create checkout/payment code | `paygw_webirr_get_code` | `plugin/webirr/classes/external/get_payment_code.php` | Moodle-native client `create_bill(...)` |
-| Check payment status | `paygw_webirr_get_status` | `plugin/webirr/classes/external/get_payment_status.php` | Moodle-native client `get_payment_status(...)` |
+| Create checkout/payment code | `paygw_webirr_get_code` | `plugin/webirr/classes/external/get_payment_code.php` | Server-side WeBirr bill/payment-code handling |
+| Check payment status | `paygw_webirr_get_status` | `plugin/webirr/classes/external/get_payment_status.php` | Server-side WeBirr payment-status handling |
 
 These endpoints are registered in `plugin/webirr/db/services.php` with
 `ajax => true` and are called by `plugin/webirr/amd/src/repository.js` through
-Moodle `core/ajax`. Merchant API credentials stay on the Moodle server: the
-checkout endpoint creates the WeBirr bill and returns the payment code, and the
-payment status endpoint forwards a single status check to WeBirr, updates the
-local Moodle payment record, and completes delivery when payment is paid.
+Moodle `core/ajax`. Merchant API credentials stay on the Moodle server. The
+checkout endpoint returns the payment code, and the payment status endpoint
+updates the local Moodle payment record and completes delivery when payment is
+paid.
 
 The calls are made through `plugin/webirr/classes/local/webirr_client.php`, so
 the plugin package does not require Composer dependencies at runtime.
 
-The payment flow is:
+The plugin keeps checkout state on the Moodle server so page refreshes,
+duplicate clicks, and interrupted browser sessions can be handled without
+exposing merchant credentials to the browser.
 
-1. **Invoice Creation / Checkout on Purchase**
-   - The user starts a Moodle purchase or paid enrollment checkout.
-   - Moodle calls `get_payment_code`, which creates a WeBirr bill/invoice.
-   - Moodle stores the local payment details for verification and later access delivery.
-2. **Payment Code Display**
-   - WeBirr returns a payment code for the user to enter in their banking app.
-   - The payment page displays the code prominently.
-   - The instructions use the format `CBE Mobile -> WeBirr -> Payment Code`.
-3. **Payment Status Monitoring**
-   - JavaScript polls the Moodle AJAX status endpoint.
-   - Moodle checks the WeBirr Payment Status API from the server side.
-4. **Completion and Access**
-   - Once paid, Moodle updates the payment record and redirects to success.
-   - Moodle's payment subsystem grants access to the purchased item.
+## WeBirr Payment Flow
+
+The plugin keeps the payment process simple for both Moodle and the customer:
+
+1. A learner starts a Moodle purchase or paid enrollment checkout.
+2. Moodle resolves the payable item, including amount, customer, description,
+   and merchant configuration.
+3. Moodle asks WeBirr to create or resume the bill/invoice using a stable
+   merchant reference.
+4. WeBirr returns a **WeBirr Payment Code** for that payable item.
+5. Moodle displays the payment code to the learner and keeps the local payment
+   record pending.
+6. The learner opens a supported mobile banking or wallet app, such as CBE
+   Mobile, CBE Birr, Telebirr, Awash Birr, M-Pesa, Coopay Ebirr, or another
+   WeBirr-enabled app.
+7. The learner follows the same general path in the selected app:
+   `{Banking App} -> WeBirr menu -> Enter Payment Code -> Pay`.
+   Current mobile apps integrated with WeBirr include CBE Mobile, CBE Birr,
+   Awash Birr, Telebirr, M-Pesa, Coopay Ebirr, and other WeBirr-enabled banking
+   or wallet apps.
+8. The banking or wallet app sends the payment through WeBirr for that payment
+   code.
+9. Moodle polls its own payment-status endpoint. The server-side Moodle plugin
+   checks WeBirr payment status and updates the local payment record.
+10. When WeBirr reports the payment as paid, Moodle records the payment,
+    redirects to success, and grants access to the purchased item.
+
+The customer never enters Moodle or merchant API credentials in the banking app.
+The WeBirr Payment Code connects the Moodle payable item to the payment made
+from the customer's chosen banking or wallet app. Detailed customer payment
+instructions are available on the WeBirr
+[How to Pay](https://webirr.com/instructions/all.html) page.
 
 ## Examples
 

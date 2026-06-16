@@ -74,5 +74,49 @@ function xmldb_paygw_webirr_upgrade(int $oldversion): bool {
         upgrade_plugin_savepoint(true, 2026061402, 'paygw', 'webirr');
     }
 
+    if ($oldversion < 2026061500) {
+        $table = new xmldb_table('paygw_webirr_payments');
+
+        $duplicates = $DB->get_records_sql(
+            "SELECT billreference, COUNT(1) AS duplicatecount
+               FROM {paygw_webirr_payments}
+           GROUP BY billreference
+             HAVING COUNT(1) > 1"
+        );
+
+        foreach ($duplicates as $duplicate) {
+            $records = $DB->get_records(
+                'paygw_webirr_payments',
+                ['billreference' => $duplicate->billreference],
+                'timemodified DESC, id DESC'
+            );
+
+            $keepfirst = true;
+            foreach ($records as $record) {
+                if ($keepfirst) {
+                    $keepfirst = false;
+                    continue;
+                }
+
+                $suffix = '_duplicate_' . $record->id;
+                $record->billreference = substr((string)$record->billreference, 0, 255 - strlen($suffix)) . $suffix;
+                $record->timemodified = time();
+                $DB->update_record('paygw_webirr_payments', $record);
+            }
+        }
+
+        $oldindex = new xmldb_index('billreference', XMLDB_INDEX_NOTUNIQUE, ['billreference']);
+        if ($dbman->index_exists($table, $oldindex)) {
+            $dbman->drop_index($table, $oldindex);
+        }
+
+        $uniqueindex = new xmldb_index('billreference', XMLDB_INDEX_UNIQUE, ['billreference']);
+        if (!$dbman->index_exists($table, $uniqueindex)) {
+            $dbman->add_index($table, $uniqueindex);
+        }
+
+        upgrade_plugin_savepoint(true, 2026061500, 'paygw', 'webirr');
+    }
+
     return true;
 }

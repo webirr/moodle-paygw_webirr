@@ -33,6 +33,9 @@ class webirr_client {
     /** @var callable|null Optional test/demo transport. */
     private $transport;
 
+    /** @var callable|null Optional transport used by PHPUnit tests. */
+    private static $testtransport;
+
     /**
      * @param string $merchantid WeBirr merchant ID.
      * @param string $apikey WeBirr API key.
@@ -50,7 +53,20 @@ class webirr_client {
         $this->merchantid = trim($merchantid);
         $this->apikey = trim($apikey);
         $this->baseurl = rtrim($baseurl ?: ($testmode ? self::TEST_BASE_URL : self::PROD_BASE_URL), '/');
-        $this->transport = $transport;
+        $this->transport = $transport ?? self::$testtransport;
+    }
+
+    /**
+     * Set a default transport for PHPUnit tests.
+     *
+     * @param callable|null $transport Test transport callback.
+     */
+    public static function set_test_transport(?callable $transport): void {
+        if (!defined('PHPUNIT_TEST') || !PHPUNIT_TEST) {
+            throw new \coding_exception('Test transport can only be set during PHPUnit tests.');
+        }
+
+        self::$testtransport = $transport;
     }
 
     /**
@@ -61,6 +77,43 @@ class webirr_client {
      */
     public function create_bill(\stdClass $bill): \stdClass {
         return $this->request('POST', 'einvoice/api/bill', [], $this->bill_payload($bill));
+    }
+
+    /**
+     * Update an unpaid WeBirr bill and return the gateway API response object.
+     *
+     * The bill reference must be the same reference used when the bill was
+     * created.
+     *
+     * @param \stdClass $bill Moodle checkout bill data.
+     * @return \stdClass Gateway response with error/res fields.
+     */
+    public function update_bill(\stdClass $bill): \stdClass {
+        return $this->request('PUT', 'einvoice/api/bill', [], $this->bill_payload($bill));
+    }
+
+    /**
+     * Fetch one WeBirr bill by merchant bill reference.
+     *
+     * @param string $billreference Merchant bill reference.
+     * @return \stdClass Gateway response with error/res fields.
+     */
+    public function get_bill_by_reference(string $billreference): \stdClass {
+        return $this->request('GET', 'einvoice/api/bill', [
+            'bill_reference' => $billreference,
+        ]);
+    }
+
+    /**
+     * Fetch one WeBirr bill by payment code.
+     *
+     * @param string $paymentcode WeBirr payment code / WBC code.
+     * @return \stdClass Gateway response with error/res fields.
+     */
+    public function get_bill_by_payment_code(string $paymentcode): \stdClass {
+        return $this->request('GET', 'einvoice/api/bill', [
+            'wbc_code' => $paymentcode,
+        ]);
     }
 
     /**
@@ -184,6 +237,8 @@ class webirr_client {
 
         if ($method === 'POST') {
             $responsebody = $curl->post($url, $body);
+        } else if ($method === 'PUT') {
+            $responsebody = $curl->put($url, $body);
         } else {
             $responsebody = $curl->get($url);
         }
