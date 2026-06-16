@@ -72,7 +72,39 @@ exposing merchant credentials to the browser.
 
 ## WeBirr Payment Flow
 
-The plugin keeps the payment process simple for both Moodle and the customer:
+At a glance, the payment flow is:
+
+### 1. Invoice Creation / Checkout on Purchase
+
+- The learner starts a Moodle purchase or paid enrollment checkout.
+- Moodle calls `get_payment_code`, which creates or resumes a WeBirr
+  bill/invoice.
+- Moodle stores local payment details for verification and later access
+  delivery.
+
+### 2. Payment Code Display
+
+- WeBirr returns a **WeBirr Payment Code** for the learner to enter in a
+  supported banking or wallet app.
+- The payment page displays the code prominently.
+- The customer payment path is:
+  `{Banking App} -> WeBirr menu -> Enter Payment Code -> Pay`.
+
+Current mobile apps integrated with WeBirr include CBE Mobile, CBE Birr, Awash
+Birr, Telebirr, M-Pesa, Coopay Ebirr, and other WeBirr-enabled banking or
+wallet apps.
+
+### 3. Payment Status Monitoring
+
+- JavaScript polls the Moodle AJAX status endpoint.
+- Moodle checks WeBirr payment status from the server side.
+
+### 4. Completion and Access
+
+- Once paid, Moodle updates the local payment record and redirects to success.
+- Moodle's payment subsystem grants access to the purchased item.
+
+### Detailed Flow
 
 1. A learner starts a Moodle purchase or paid enrollment checkout.
 2. Moodle resolves the payable item, including amount, customer, description,
@@ -82,14 +114,9 @@ The plugin keeps the payment process simple for both Moodle and the customer:
 4. WeBirr returns a **WeBirr Payment Code** for that payable item.
 5. Moodle displays the payment code to the learner and keeps the local payment
    record pending.
-6. The learner opens a supported mobile banking or wallet app, such as CBE
-   Mobile, CBE Birr, Telebirr, Awash Birr, M-Pesa, Coopay Ebirr, or another
-   WeBirr-enabled app.
-7. The learner follows the same general path in the selected app:
+6. The learner opens a mobile banking or wallet app integrated with WeBirr.
+7. The learner follows the general app path:
    `{Banking App} -> WeBirr menu -> Enter Payment Code -> Pay`.
-   Current mobile apps integrated with WeBirr include CBE Mobile, CBE Birr,
-   Awash Birr, Telebirr, M-Pesa, Coopay Ebirr, and other WeBirr-enabled banking
-   or wallet apps.
 8. The banking or wallet app sends the payment through WeBirr for that payment
    code.
 9. Moodle polls its own payment-status endpoint. The server-side Moodle plugin
