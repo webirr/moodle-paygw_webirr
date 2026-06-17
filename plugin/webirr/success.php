@@ -22,9 +22,6 @@ $PAGE->requires->css('/payment/gateway/webirr/styles.css');
 
 echo $OUTPUT->header();
 
-// Display success message.
-echo $OUTPUT->notification(get_string('paymentsuccessful', 'paygw_webirr'), 'success');
-
 $paymentrecords = $DB->get_records(
     'paygw_webirr_payments',
     [

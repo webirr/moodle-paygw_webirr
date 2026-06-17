@@ -4,8 +4,7 @@ namespace paygw_webirr;
 
 defined('MOODLE_INTERNAL') || die();
 
-use core_payment\form\account_gateway_form;
-use core_payment\helper;
+use core_payment\form\account_gateway;
 use core_payment\local\entities\payable;
 
 class gateway extends \core_payment\gateway {
@@ -21,9 +20,9 @@ class gateway extends \core_payment\gateway {
     /**
      * Configuration form for the gateway instance
      *
-     * @param account_gateway_form $form The form instance
+     * @param account_gateway $form The form instance
      */
-    public static function add_configuration_to_gateway_form(account_gateway_form $form): void {
+    public static function add_configuration_to_gateway_form(account_gateway $form): void {
         $mform = $form->get_mform();
 
         $mform->addElement('text', 'apikey', get_string('apikey', 'paygw_webirr'));
@@ -44,12 +43,12 @@ class gateway extends \core_payment\gateway {
     /**
      * Validates the gateway configuration form.
      *
-     * @param account_gateway_form $form The submitted form
+     * @param account_gateway $form The submitted form
      * @param \stdClass $data The submitted data
      * @param array $files The submitted files
      * @param array $errors The errors array
      */
-    public static function validate_gateway_form(account_gateway_form $form,
+    public static function validate_gateway_form(account_gateway $form,
                                                 \stdClass $data,
                                                 array $files,
                                                 array &$errors): void {

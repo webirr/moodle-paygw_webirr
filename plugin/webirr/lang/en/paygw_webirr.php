@@ -13,6 +13,7 @@
 
 $string['pluginname'] = 'WeBirr';
 $string['pluginname_desc'] = 'The WeBirr plugin allows you to receive payments via WeBirr.';
+$string['gatewayname'] = 'WeBirr';
 $string['checkouttitle'] = 'WeBirr Online Checkout';
 $string['gatewaydescription'] = 'WeBirr is a payment service provider that allows users to pay via their banking app.';
 $string['apikey'] = 'WeBirr API Key';
