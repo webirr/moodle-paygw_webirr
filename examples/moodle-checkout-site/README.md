@@ -13,6 +13,20 @@ It is intended for visual checks and release validation of the Moodle checkout
 flow: Moodle paid enrolment, WeBirr payment selection, payment-code display,
 server-side polling, and payment confirmation.
 
+## Runtime Mode
+
+This example runs in WeBirr TestEnv mode. It validates the actual Moodle plugin
+against the real WeBirr TestEnv gateway and requires TestEnv merchant
+credentials on the server side.
+
+The production Moodle plugin supports both TestEnv and ProdEnv through its
+Moodle payment account settings. This Docker example intentionally seeds
+TestEnv mode for repeatable validation.
+
+No-credential mocked checkout examples should stay separate from the production
+Moodle plugin runtime. This example is intentionally reserved for real plugin
+validation.
+
 ## Run
 
 Copy the environment template and fill in WeBirr TestEnv credentials:
