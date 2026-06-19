@@ -1,0 +1,12 @@
+services:
+  web:
+    build:
+      context: .
+    ports:
+      - "${STANDALONE_PORT:-8096}:8096"
+    environment:
+      WEBIRR_TEST_ENV_MERCHANT_ID: ${WEBIRR_TEST_ENV_MERCHANT_ID:-}
+      WEBIRR_TEST_ENV_API_KEY: ${WEBIRR_TEST_ENV_API_KEY:-}
+    volumes:
+      - ./:/app:cached
+      - ../../plugin/webirr:/plugin/webirr:ro

@@ -7,6 +7,7 @@ require_once($CFG->libdir . '/externallib.php');
 
 use external_api;
 use external_function_parameters;
+use external_multiple_structure;
 use external_single_structure;
 use external_value;
 use paygw_webirr\local\webirr_client;
@@ -148,7 +149,7 @@ class get_payment_code extends external_api {
                     $status
                 );
 
-                return self::payment_code_response($paymentcode, (int)$record->id, $billreference);
+                return self::payment_code_response($paymentcode, (int)$record->id, $billreference, $client);
             }
 
             return [
@@ -181,7 +182,7 @@ class get_payment_code extends external_api {
                 0
             );
 
-            return self::payment_code_response((string)$paymentcode, (int)$record->id, $billreference);
+            return self::payment_code_response((string)$paymentcode, (int)$record->id, $billreference, $client);
         } else {
             return [
                 'success' => false,
@@ -200,6 +201,14 @@ class get_payment_code extends external_api {
             'paymentcode' => new external_value(PARAM_TEXT, 'The WeBirr payment code', VALUE_OPTIONAL),
             'paymentid' => new external_value(PARAM_INT, 'The payment record ID', VALUE_OPTIONAL),
             'billreference' => new external_value(PARAM_TEXT, 'The merchant bill reference', VALUE_OPTIONAL),
+            'supportedbanks' => new external_multiple_structure(
+                new external_single_structure([
+                    'bankid' => new external_value(PARAM_TEXT, 'The WeBirr bank or wallet ID'),
+                    'name' => new external_value(PARAM_TEXT, 'Display name for the bank or wallet'),
+                ]),
+                'Banks and wallets configured for this merchant',
+                VALUE_OPTIONAL
+            ),
             'error' => new external_value(PARAM_TEXT, 'The error message if the payment code was not created', VALUE_OPTIONAL)
         ]);
     }
@@ -334,7 +343,12 @@ class get_payment_code extends external_api {
             $DB->update_record('paygw_webirr_payments', $record);
         }
 
-        return self::payment_code_response((string)$record->wbc_code, (int)$record->id, (string)$record->billreference);
+        return self::payment_code_response(
+            (string)$record->wbc_code,
+            (int)$record->id,
+            (string)$record->billreference,
+            $client
+        );
     }
 
     /**
@@ -433,15 +447,58 @@ class get_payment_code extends external_api {
      * @param string $paymentcode WeBirr payment code.
      * @param int $paymentid Local Moodle payment record id.
      * @param string $billreference Merchant bill reference.
+     * @param webirr_client $client WeBirr client.
      * @return array External function response.
      */
-    private static function payment_code_response(string $paymentcode, int $paymentid, string $billreference): array {
+    private static function payment_code_response(
+        string $paymentcode,
+        int $paymentid,
+        string $billreference,
+        webirr_client $client
+    ): array {
         return [
             'success' => true,
             'paymentcode' => $paymentcode,
             'paymentid' => $paymentid,
-            'billreference' => $billreference
+            'billreference' => $billreference,
+            'supportedbanks' => self::supported_banks_response($client),
         ];
+    }
+
+    /**
+     * Fetch and normalize merchant-supported banks for browser display.
+     *
+     * The payment code remains usable even if this optional display list cannot
+     * be loaded, so failures return an empty list instead of failing checkout.
+     *
+     * @param webirr_client $client WeBirr client.
+     * @return array[] Supported bank rows with bankid/name fields.
+     */
+    private static function supported_banks_response(webirr_client $client): array {
+        $response = $client->get_supported_banks();
+        if (!empty($response->error) || !isset($response->res) || !is_array($response->res)) {
+            return [];
+        }
+
+        $banks = [];
+        foreach ($response->res as $bank) {
+            if (!is_object($bank)) {
+                continue;
+            }
+
+            $bankid = trim((string)($bank->bankID ?? $bank->bankid ?? ''));
+            $name = trim((string)($bank->name ?? ''));
+            if ($bankid === '' || $name === '') {
+                continue;
+            }
+
+            $banks[] = [
+                'bankid' => $bankid,
+                'name' => $name,
+            ];
+        }
+
+        return $banks;
     }
 
     /**

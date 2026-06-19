@@ -57,6 +57,8 @@ $PAGE->requires->js_call_amd('paygw_webirr/payment', 'init', [
         'refreshingpaymentstatus' => get_string('refreshingpaymentstatus', 'paygw_webirr'),
         'paymentsuccessful' => get_string('paymentsuccessful', 'paygw_webirr'),
         'paymentnotreceived' => get_string('paymentnotreceived', 'paygw_webirr'),
+        'paymentinstructionfallback' => get_string('paymentinstructionfallback', 'paygw_webirr'),
+        'paymentinstructionunavailable' => get_string('paymentinstructionunavailable', 'paygw_webirr'),
     ]
 ]);
 $PAGE->requires->css('/payment/gateway/webirr/styles.css');
@@ -120,20 +122,16 @@ echo html_writer::start_div('alert alert-info', ['id' => 'payment-status']);
 echo html_writer::span('', 'payment-spinner', ['id' => 'payment-spinner', 'aria-hidden' => 'true']);
 echo html_writer::span(get_string('paymentpending', 'paygw_webirr'), 'payment-status-text', ['id' => 'payment-status-text']);
 echo html_writer::end_div();
-$paymentinstructions = ['CBE Mobile', 'CBE Birr', 'Awash Birr', 'Telebirr', 'M-Pesa'];
-echo html_writer::start_div('payment-instruction-list');
+echo html_writer::start_div('payment-instruction-list', [
+    'id' => 'payment-instruction-list',
+    'style' => 'display: none;',
+]);
 echo html_writer::tag('div', get_string('paymentinstruction', 'paygw_webirr'), ['class' => 'payment-instruction-title']);
-foreach ($paymentinstructions as $paymentinstruction) {
-    echo html_writer::tag(
-        'div',
-        html_writer::span($paymentinstruction, 'payment-instruction-channel') .
-            html_writer::span('-&gt;', 'payment-instruction-arrow') .
-            html_writer::span(get_string('webirrpaymenttarget', 'paygw_webirr'), 'payment-instruction-target') .
-            html_writer::span('-&gt;', 'payment-instruction-arrow') .
-            html_writer::span(get_string('enterpaymentcode', 'paygw_webirr'), 'payment-instruction-target'),
-        ['class' => 'payment-instruction-item']
-    );
-}
+echo html_writer::tag('div', '', [
+    'id' => 'payment-instruction-items',
+    'data-webirr-target' => get_string('webirrpaymenttarget', 'paygw_webirr'),
+    'data-payment-code-label' => get_string('enterpaymentcode', 'paygw_webirr'),
+]);
 echo html_writer::end_div();
 echo html_writer::start_div('payment-actions', ['id' => 'payment-actions', 'style' => 'display: none;']);
 echo html_writer::tag('button', get_string('refresh', 'paygw_webirr'), [

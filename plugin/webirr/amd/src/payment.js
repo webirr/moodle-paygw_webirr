@@ -45,6 +45,7 @@ function($, Notification, Repository) {
         showActions(false);
         $('#payment-loading').hide();
         $('#payment-code-display').empty();
+        hidePaymentInstructions();
         $('#payment-record').hide();
         setStatus('info', getString('readyforcheckout'), false);
     };
@@ -77,6 +78,7 @@ function($, Notification, Repository) {
                         .empty()
                         .append($('<div>').addClass('payment-code-title').text(getString('webirrpaymentcode')))
                         .append($('<div>').addClass('payment-code-large').text(response.paymentcode));
+                    renderSupportedBanks(response.supportedbanks || []);
                     $('#merchant-reference').text(response.billreference || '');
                     $('#local-payment-status').text('pending');
                     $('#payment-record').show();
@@ -142,6 +144,68 @@ function($, Notification, Repository) {
      */
     var setDetail = function(message) {
         $('#payment-detail').text(message);
+    };
+
+    /**
+     * Hide and clear the payment instruction list.
+     */
+    var hidePaymentInstructions = function() {
+        $('#payment-instruction-items').empty();
+        $('#payment-instruction-list').hide();
+    };
+
+    /**
+     * Render merchant-supported WeBirr banks returned by Moodle.
+     *
+     * @param {Array} banks Supported bank rows
+     */
+    var renderSupportedBanks = function(banks) {
+        var list = $('#payment-instruction-list');
+        var items = $('#payment-instruction-items');
+        var target = items.attr('data-webirr-target') || 'WeBirr';
+        var paymentCodeLabel = items.attr('data-payment-code-label') || 'Payment Code';
+
+        if (!list.length || !items.length) {
+            return;
+        }
+
+        items.empty();
+        if (!Array.isArray(banks) || banks.length === 0) {
+            items.append(
+                $('<div>')
+                    .addClass('payment-instruction-item payment-instruction-fallback')
+                    .text(getString('paymentinstructionunavailable'))
+            );
+            list.show();
+            return;
+        }
+
+        banks.forEach(function(bank) {
+            var name = bank && (bank.name || bank.bankName || bank.bankid || bank.bankID);
+            if (!name) {
+                return;
+            }
+
+            items.append(
+                $('<div>')
+                    .addClass('payment-instruction-item')
+                    .append($('<span>').addClass('payment-instruction-channel').text(name))
+                    .append($('<span>').addClass('payment-instruction-arrow').text('->'))
+                    .append($('<span>').addClass('payment-instruction-target').text(target))
+                    .append($('<span>').addClass('payment-instruction-arrow').text('->'))
+                    .append($('<span>').addClass('payment-instruction-target').text(paymentCodeLabel))
+            );
+        });
+
+        if (items.children().length === 0) {
+            items.append(
+                $('<div>')
+                    .addClass('payment-instruction-item payment-instruction-fallback')
+                    .text(getString('paymentinstructionfallback'))
+            );
+        }
+
+        list.show();
     };
 
     /**
@@ -232,7 +296,9 @@ function($, Notification, Repository) {
             checkpaymentstatus: 'Checking payment status...',
             refreshingpaymentstatus: 'Refreshing payment status...',
             paymentsuccessful: 'Your payment was successful.',
-            paymentnotreceived: 'Payment not received yet.'
+            paymentnotreceived: 'Payment not received yet.',
+            paymentinstructionfallback: 'Use one of this merchant\'s supported WeBirr banking or wallet apps.',
+            paymentinstructionunavailable: 'Payment instructions could not be loaded. Use a supported WeBirr banking or wallet app.'
         };
 
         return strings[key] || defaults[key] || key;

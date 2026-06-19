@@ -59,6 +59,8 @@ global \$CFG;
 
 \$CFG->wwwroot   = 'http://localhost:${MOODLE_PORT}';
 \$CFG->dataroot  = '/var/www/moodledata';
+\$CFG->phpunit_dataroot = '/var/www/phpunitdata';
+\$CFG->phpunit_prefix = 'phpu_';
 \$CFG->admin     = 'admin';
 \$CFG->directorypermissions = 02777;
 \$CFG->debug = (E_ALL | E_STRICT);
@@ -88,10 +90,6 @@ fi
 
 docker compose exec -T web php /var/www/html/admin/cli/upgrade.php --non-interactive
 docker compose exec -T \
-  -e WEBIRR_TEST_ENV_MERCHANT_ID="$WEBIRR_TEST_ENV_MERCHANT_ID" \
-  -e WEBIRR_TEST_ENV_API_KEY="$WEBIRR_TEST_ENV_API_KEY" \
-  -e WEBIRR_MOODLE_DEMO_USERNAME="$WEBIRR_MOODLE_DEMO_USERNAME" \
-  -e WEBIRR_MOODLE_DEMO_PASSWORD="$WEBIRR_MOODLE_DEMO_PASSWORD" \
   web php /var/www/html/webirr-demo-scripts/seed.php
 docker compose exec -T web php /var/www/html/admin/cli/purge_caches.php
 

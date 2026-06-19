@@ -151,6 +151,44 @@ final class webirr_client_test extends \advanced_testcase {
     }
 
     /**
+     * Supported banks should use the merchant-scoped banks endpoint.
+     */
+    public function test_get_supported_banks_uses_canonical_endpoint(): void {
+        $requests = [];
+        $client = new webirr_client(
+            'merchant-from-client',
+            'api-key',
+            true,
+            function(string $method, string $url, ?array $payload, array $headers) use (&$requests): array {
+                $requests[] = [
+                    'method' => $method,
+                    'url' => $url,
+                    'payload' => $payload,
+                    'headers' => $headers,
+                ];
+
+                return [
+                    'status' => 200,
+                    'body' => '{"error":null,"res":[{"bankID":"cbe_mobile","name":"CBE Mobile Banking"}]}',
+                    'error' => '',
+                ];
+            }
+        );
+
+        $response = $client->get_supported_banks();
+
+        $this->assertNull($response->error);
+        $this->assertSame('cbe_mobile', $response->res[0]->bankID);
+        $this->assertSame('CBE Mobile Banking', $response->res[0]->name);
+        $this->assertCount(1, $requests);
+        $this->assertSame('GET', $requests[0]['method']);
+        $this->assertNull($requests[0]['payload']);
+        $this->assertStringStartsWith('https://api.webirr.net/einvoice/api/banks?', $requests[0]['url']);
+        $this->assertStringContainsString('api_key=api-key', $requests[0]['url']);
+        $this->assertStringContainsString('merchant_id=merchant-from-client', $requests[0]['url']);
+    }
+
+    /**
      * Bill update should use the canonical unpaid-bill update endpoint.
      */
     public function test_update_bill_uses_canonical_endpoint(): void {

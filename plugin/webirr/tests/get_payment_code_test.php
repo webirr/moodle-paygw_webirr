@@ -46,6 +46,14 @@ final class get_payment_code_test extends \advanced_testcase {
         ) use (&$requests): array {
             $requests[] = compact('method', 'url', 'payload', 'headers');
 
+            if (strpos($url, 'einvoice/api/banks') !== false) {
+                return [
+                    'status' => 200,
+                    'body' => '{"error":null,"res":[{"bankID":"cbe_mobile","name":"CBE Mobile Banking"}],"errorCode":null}',
+                    'error' => '',
+                ];
+            }
+
             if ($method === 'GET') {
                 return [
                     'status' => 200,
@@ -65,13 +73,17 @@ final class get_payment_code_test extends \advanced_testcase {
 
         $this->assertTrue($response['success']);
         $this->assertSame('123 456 789', $response['paymentcode']);
-        $this->assertCount(2, $requests);
+        $this->assertSame('cbe_mobile', $response['supportedbanks'][0]['bankid']);
+        $this->assertSame('CBE Mobile Banking', $response['supportedbanks'][0]['name']);
+        $this->assertCount(3, $requests);
         $this->assertSame('GET', $requests[0]['method']);
         $this->assertSame('POST', $requests[1]['method']);
+        $this->assertSame('GET', $requests[2]['method']);
         $this->assertStringContainsString('bill_reference=' . rawurlencode($response['billreference']), $requests[0]['url']);
         $this->assertSame($response['billreference'], $requests[1]['payload']['billReference']);
         $this->assertSame('test-merchant-id', $requests[1]['payload']['merchantID']);
         $this->assertSame('530.00', $requests[1]['payload']['amount']);
+        $this->assertStringContainsString('einvoice/api/banks', $requests[2]['url']);
 
         $record = $DB->get_record('paygw_webirr_payments', ['id' => $response['paymentid']], '*', MUST_EXIST);
         $this->assertSame($response['billreference'], $record->billreference);
@@ -81,9 +93,9 @@ final class get_payment_code_test extends \advanced_testcase {
     }
 
     /**
-     * An existing local pending payment should be reused without a gateway call when payable details match.
+     * An existing local pending payment should be reused without a bill/status gateway call when payable details match.
      */
-    public function test_existing_local_payment_is_reused_without_gateway_call(): void {
+    public function test_existing_local_payment_is_reused_without_bill_gateway_call(): void {
         global $DB;
 
         $this->resetAfterTest();
@@ -92,9 +104,21 @@ final class get_payment_code_test extends \advanced_testcase {
         $instanceid = $this->create_fee_enrolment_instance(530.00);
         $billreference = $this->expected_bill_reference('enrol_fee', 'fee', $instanceid, (int)$user->id);
         $paymentid = $this->insert_payment_record($user->id, $instanceid, $billreference, '123 456 789', 530.00, 'ETB', 0);
+        $requests = [];
 
-        webirr_client::set_test_transport(function(): array {
-            $this->fail('Gateway should not be called when the local payment record can be reused.');
+        webirr_client::set_test_transport(function(
+            string $method,
+            string $url,
+            ?array $payload,
+            array $headers
+        ) use (&$requests): array {
+            $requests[] = compact('method', 'url', 'payload', 'headers');
+
+            return [
+                'status' => 200,
+                'body' => '{"error":null,"res":[{"bankID":"telebirr","name":"Telebirr"}],"errorCode":null}',
+                'error' => '',
+            ];
         });
 
         $response = get_payment_code::execute('enrol_fee', 'fee', $instanceid, 'moodle course enrollment');
@@ -103,6 +127,9 @@ final class get_payment_code_test extends \advanced_testcase {
         $this->assertSame('123 456 789', $response['paymentcode']);
         $this->assertSame($paymentid, $response['paymentid']);
         $this->assertSame($billreference, $response['billreference']);
+        $this->assertSame('telebirr', $response['supportedbanks'][0]['bankid']);
+        $this->assertCount(1, $requests);
+        $this->assertStringContainsString('einvoice/api/banks', $requests[0]['url']);
         $this->assertCount(1, $DB->get_records('paygw_webirr_payments', ['billreference' => $billreference]));
     }
 
@@ -126,6 +153,14 @@ final class get_payment_code_test extends \advanced_testcase {
         ) use (&$requests): array {
             $requests[] = compact('method', 'url', 'payload', 'headers');
 
+            if (strpos($url, 'einvoice/api/banks') !== false) {
+                return [
+                    'status' => 200,
+                    'body' => '{"error":null,"res":[{"bankID":"awash_birr","name":"Awash Mobile Wallet | Awash Birr"}],"errorCode":null}',
+                    'error' => '',
+                ];
+            }
+
             return [
                 'status' => 200,
                 'body' => '{"error":null,"res":{"wbcCode":"222333444","paymentStatus":0,"amount":"530","customerName":"Elias Haileselassie","customerPhone":"","description":"moodle course enrollment"},"errorCode":null}',
@@ -137,8 +172,10 @@ final class get_payment_code_test extends \advanced_testcase {
 
         $this->assertTrue($response['success']);
         $this->assertSame('222333444', $response['paymentcode']);
-        $this->assertCount(1, $requests);
+        $this->assertSame('awash_birr', $response['supportedbanks'][0]['bankid']);
+        $this->assertCount(2, $requests);
         $this->assertSame('GET', $requests[0]['method']);
+        $this->assertStringContainsString('einvoice/api/banks', $requests[1]['url']);
 
         $record = $DB->get_record('paygw_webirr_payments', ['id' => $response['paymentid']], '*', MUST_EXIST);
         $this->assertSame('222333444', $record->wbc_code);
@@ -167,6 +204,14 @@ final class get_payment_code_test extends \advanced_testcase {
         ) use (&$requests): array {
             $requests[] = compact('method', 'url', 'payload', 'headers');
 
+            if (strpos($url, 'einvoice/api/banks') !== false) {
+                return [
+                    'status' => 200,
+                    'body' => '{"error":null,"res":[{"bankID":"m_pesa","name":"M-Pesa Safaricom"}],"errorCode":null}',
+                    'error' => '',
+                ];
+            }
+
             if ($method === 'GET') {
                 return [
                     'status' => 200,
@@ -186,9 +231,11 @@ final class get_payment_code_test extends \advanced_testcase {
 
         $this->assertTrue($response['success']);
         $this->assertSame($paymentid, $response['paymentid']);
-        $this->assertCount(2, $requests);
+        $this->assertSame('m_pesa', $response['supportedbanks'][0]['bankid']);
+        $this->assertCount(3, $requests);
         $this->assertSame('GET', $requests[0]['method']);
         $this->assertSame('PUT', $requests[1]['method']);
+        $this->assertStringContainsString('einvoice/api/banks', $requests[2]['url']);
         $this->assertSame('530.00', $requests[1]['payload']['amount']);
 
         $record = $DB->get_record('paygw_webirr_payments', ['id' => $paymentid], '*', MUST_EXIST);
@@ -218,6 +265,14 @@ final class get_payment_code_test extends \advanced_testcase {
         ) use (&$requests): array {
             $requests[] = compact('method', 'url', 'payload', 'headers');
 
+            if (strpos($url, 'einvoice/api/banks') !== false) {
+                return [
+                    'status' => 200,
+                    'body' => '{"error":null,"res":[{"bankID":"coopay_ebirr","name":"Coopay Ebirr | Cooperative Bank of Oromia"}],"errorCode":null}',
+                    'error' => '',
+                ];
+            }
+
             return [
                 'status' => 200,
                 'body' => '{"error":null,"res":{"status":2},"errorCode":null}',
@@ -229,8 +284,10 @@ final class get_payment_code_test extends \advanced_testcase {
 
         $this->assertTrue($response['success']);
         $this->assertSame($paymentid, $response['paymentid']);
-        $this->assertCount(1, $requests);
+        $this->assertSame('coopay_ebirr', $response['supportedbanks'][0]['bankid']);
+        $this->assertCount(2, $requests);
         $this->assertSame('GET', $requests[0]['method']);
+        $this->assertStringContainsString('einvoice/api/banks', $requests[1]['url']);
 
         $record = $DB->get_record('paygw_webirr_payments', ['id' => $paymentid], '*', MUST_EXIST);
         $this->assertEquals(100.00, (float)$record->amount);

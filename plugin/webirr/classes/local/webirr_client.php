@@ -129,6 +129,15 @@ class webirr_client {
     }
 
     /**
+     * Fetch banks and wallets configured for this merchant.
+     *
+     * @return \stdClass Gateway response with error/res fields.
+     */
+    public function get_supported_banks(): \stdClass {
+        return $this->request('GET', 'einvoice/api/banks');
+    }
+
+    /**
      * Build a gateway request and decode the response.
      *
      * @param string $method HTTP method.

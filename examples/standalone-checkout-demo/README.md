@@ -15,7 +15,35 @@ It does not use Moodle's payment APIs, Moodle AJAX external functions, or the
 plugin's AMD JavaScript. It has its own lightweight routes and SQLite demo
 storage so the checkout pattern can be shown quickly from a local PHP server.
 
-## Run
+## Run With Docker
+
+Copy the environment template and set WeBirr TestEnv credentials:
+
+```sh
+cp .env.example .env
+```
+
+Edit `.env` and set:
+
+```text
+WEBIRR_TEST_ENV_MERCHANT_ID=your-test-merchant-id
+WEBIRR_TEST_ENV_API_KEY=your-test-api-key
+```
+
+Start the demo from this directory:
+
+```sh
+docker compose up --build
+```
+
+Open `http://127.0.0.1:8096/`, or use the `STANDALONE_PORT` value from
+`.env` if you changed it.
+
+The container mounts the demo source and the Moodle plugin's native WeBirr
+client from this repository. SQLite demo data is stored in the ignored `data/`
+directory.
+
+## Run Without Docker
 
 Set TestEnv credentials and start the local PHP server:
 
@@ -72,7 +100,8 @@ The general customer path is:
 
 Current mobile apps integrated with WeBirr include CBE Mobile, CBE Birr, Awash
 Birr, Telebirr, M-Pesa, Coopay Ebirr, and other WeBirr-enabled banking or
-wallet apps.
+wallet apps. The demo displays only the subset returned by WeBirr for the
+configured merchant.
 
 After the customer pays, the demo checks WeBirr payment status from the server
 side and updates the checkout screen from pending to confirmed.

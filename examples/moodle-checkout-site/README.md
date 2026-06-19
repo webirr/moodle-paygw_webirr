@@ -28,7 +28,7 @@ WEBIRR_TEST_ENV_MERCHANT_ID=your-test-merchant-id
 WEBIRR_TEST_ENV_API_KEY=your-test-api-key
 ```
 
-Start the Moodle site:
+Start and seed the Moodle site from this directory:
 
 ```sh
 ./scripts/bootstrap.sh
@@ -46,8 +46,9 @@ Use the demo login printed by the script. The default username is:
 webirrstudent
 ```
 
-The script installs Moodle into `.runtime/`, configures the payment account,
-creates a paid-enrolment test course, and mounts the plugin from
+The script uses this directory's `docker-compose.yml`, installs Moodle into
+`.runtime/`, configures the payment account with the TestEnv merchant
+credentials, creates a paid-enrolment test course, and mounts the plugin from
 `../../plugin/webirr`.
 
 ## Checkout Flow
@@ -102,7 +103,8 @@ The general customer path is:
 
 Current mobile apps integrated with WeBirr include CBE Mobile, CBE Birr, Awash
 Birr, Telebirr, M-Pesa, Coopay Ebirr, and other WeBirr-enabled banking or
-wallet apps.
+wallet apps. The plugin displays only the subset returned by WeBirr for the
+configured merchant.
 
 After the customer pays, browser JavaScript polls Moodle's
 `paygw_webirr_get_status` endpoint. Moodle checks WeBirr payment status from the

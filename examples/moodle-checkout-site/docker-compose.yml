@@ -27,3 +27,7 @@ services:
       - ./scripts:/var/www/html/webirr-demo-scripts:ro
     environment:
       MOODLE_DOCKER_DBTYPE: pgsql
+      WEBIRR_TEST_ENV_MERCHANT_ID: ${WEBIRR_TEST_ENV_MERCHANT_ID:-}
+      WEBIRR_TEST_ENV_API_KEY: ${WEBIRR_TEST_ENV_API_KEY:-}
+      WEBIRR_MOODLE_DEMO_USERNAME: ${WEBIRR_MOODLE_DEMO_USERNAME:-webirrstudent}
+      WEBIRR_MOODLE_DEMO_PASSWORD: ${WEBIRR_MOODLE_DEMO_PASSWORD:-WebirrDemo1!}

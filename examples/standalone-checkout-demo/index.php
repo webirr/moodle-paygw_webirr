@@ -82,7 +82,7 @@ function create_bill(): void {
 
     if ($existing && !empty($existing['payment_code'])) {
         $payment = reuse_demo_payment($db, $existing, $bill, $merchantreference, $detailshash, $client);
-        json_response(payment_code_response($payment, $payment['operation'] ?? 'reused'));
+        json_response(payment_code_response($payment, $payment['operation'] ?? 'reused', $client));
     }
 
     $recovered = $client->get_bill_by_reference($billreference);
@@ -119,7 +119,7 @@ function create_bill(): void {
             $status
         );
         $payment['operation'] = $operation;
-        json_response(payment_code_response($payment, $operation));
+        json_response(payment_code_response($payment, $operation, $client));
     } else if (is_transport_error($recovered->error)) {
         json_response([
             'success' => false,
@@ -152,7 +152,7 @@ function create_bill(): void {
         0
     );
     $payment['operation'] = 'created';
-    json_response(payment_code_response($payment, 'created'));
+    json_response(payment_code_response($payment, 'created', $client));
 }
 
 function payment_status(): void {
@@ -268,7 +268,7 @@ function reuse_demo_payment(
     return $existing;
 }
 
-function payment_code_response(array $payment, string $operation): array {
+function payment_code_response(array $payment, string $operation, webirr_client $client): array {
     return [
         'success' => true,
         'paymentId' => (int)$payment['id'],
@@ -278,7 +278,62 @@ function payment_code_response(array $payment, string $operation): array {
         'amount' => (string)$payment['amount'],
         'status' => (int)$payment['status'],
         'operation' => $operation,
+        'supportedBanks' => supported_banks_response($client),
     ];
+}
+
+function supported_banks_response(webirr_client $client): array {
+    $response = $client->get_supported_banks();
+    if (!empty($response->error) || !isset($response->res) || !is_array($response->res)) {
+        return [];
+    }
+
+    $banks = [];
+    foreach ($response->res as $bank) {
+        if (!is_object($bank)) {
+            continue;
+        }
+
+        $bankid = trim((string)($bank->bankID ?? $bank->bankid ?? ''));
+        $name = trim((string)($bank->name ?? ''));
+        if ($bankid === '' || $name === '') {
+            continue;
+        }
+
+        $banks[] = [
+            'bankID' => $bankid,
+            'name' => $name,
+        ];
+    }
+
+    return $banks;
+}
+
+function supported_banks_preview(): array {
+    try {
+        return supported_banks_response(create_webirr_client());
+    } catch (Throwable $throwable) {
+        return [];
+    }
+}
+
+function render_payment_instruction_items(array $banks): void {
+    if (empty($banks)) {
+        ?>
+                    <div class="payment-instruction-item payment-instruction-fallback">Use a supported WeBirr banking or wallet app.</div>
+        <?php
+        return;
+    }
+
+    foreach ($banks as $bank) {
+        $name = trim((string)($bank['name'] ?? ''));
+        if ($name === '') {
+            continue;
+        }
+        ?>
+                    <div class="payment-instruction-item"><span class="payment-instruction-channel"><?php echo htmlspecialchars($name, ENT_QUOTES, 'UTF-8'); ?></span><span class="payment-instruction-arrow">-&gt;</span><span class="payment-instruction-target">WeBirr</span><span class="payment-instruction-arrow">-&gt;</span><span class="payment-instruction-target">Payment Code</span></div>
+        <?php
+    }
 }
 
 function find_demo_payment(PDO $db, string $billreference): ?array {
@@ -654,6 +709,7 @@ function json_response(array $payload, int $status = 200): void {
 function render_page(): void {
     $preview = (string)($_GET['preview'] ?? '');
     $defaultmerchantreference = default_merchant_reference();
+    $previewbanks = $preview === 'journey' ? supported_banks_preview() : [];
     ?>
 <!doctype html>
 <html lang="en">
@@ -1125,12 +1181,7 @@ function render_page(): void {
                 </div>
                 <div class="payment-instruction-list">
                     <div class="payment-instruction-title">Payment Instruction</div>
-                    <div class="payment-instruction-item"><span class="payment-instruction-channel">CBE Mobile</span><span class="payment-instruction-arrow">-&gt;</span><span class="payment-instruction-target">WeBirr</span><span class="payment-instruction-arrow">-&gt;</span><span class="payment-instruction-target">Payment Code</span></div>
-                    <div class="payment-instruction-item"><span class="payment-instruction-channel">CBE Birr</span><span class="payment-instruction-arrow">-&gt;</span><span class="payment-instruction-target">WeBirr</span><span class="payment-instruction-arrow">-&gt;</span><span class="payment-instruction-target">Payment Code</span></div>
-                    <div class="payment-instruction-item"><span class="payment-instruction-channel">Awash Birr</span><span class="payment-instruction-arrow">-&gt;</span><span class="payment-instruction-target">WeBirr</span><span class="payment-instruction-arrow">-&gt;</span><span class="payment-instruction-target">Payment Code</span></div>
-                    <div class="payment-instruction-item"><span class="payment-instruction-channel">Telebirr</span><span class="payment-instruction-arrow">-&gt;</span><span class="payment-instruction-target">WeBirr</span><span class="payment-instruction-arrow">-&gt;</span><span class="payment-instruction-target">Payment Code</span></div>
-                    <div class="payment-instruction-item"><span class="payment-instruction-channel">M-Pesa</span><span class="payment-instruction-arrow">-&gt;</span><span class="payment-instruction-target">WeBirr</span><span class="payment-instruction-arrow">-&gt;</span><span class="payment-instruction-target">Payment Code</span></div>
-                    <div class="payment-instruction-item"><span class="payment-instruction-channel">Coopay Ebirr</span><span class="payment-instruction-arrow">-&gt;</span><span class="payment-instruction-target">WeBirr</span><span class="payment-instruction-arrow">-&gt;</span><span class="payment-instruction-target">Payment Code</span></div>
+                    <?php render_payment_instruction_items($previewbanks); ?>
                 </div>
                 <dl class="record">
                     <dt>Merchant reference</dt>
@@ -1214,12 +1265,7 @@ function render_page(): void {
                     </div>
                     <div class="payment-instruction-list">
                         <div class="payment-instruction-title">Payment Instruction</div>
-                        <div class="payment-instruction-item"><span class="payment-instruction-channel">CBE Mobile</span><span class="payment-instruction-arrow">-&gt;</span><span class="payment-instruction-target">WeBirr</span><span class="payment-instruction-arrow">-&gt;</span><span class="payment-instruction-target">Payment Code</span></div>
-                        <div class="payment-instruction-item"><span class="payment-instruction-channel">CBE Birr</span><span class="payment-instruction-arrow">-&gt;</span><span class="payment-instruction-target">WeBirr</span><span class="payment-instruction-arrow">-&gt;</span><span class="payment-instruction-target">Payment Code</span></div>
-                        <div class="payment-instruction-item"><span class="payment-instruction-channel">Awash Birr</span><span class="payment-instruction-arrow">-&gt;</span><span class="payment-instruction-target">WeBirr</span><span class="payment-instruction-arrow">-&gt;</span><span class="payment-instruction-target">Payment Code</span></div>
-                        <div class="payment-instruction-item"><span class="payment-instruction-channel">Telebirr</span><span class="payment-instruction-arrow">-&gt;</span><span class="payment-instruction-target">WeBirr</span><span class="payment-instruction-arrow">-&gt;</span><span class="payment-instruction-target">Payment Code</span></div>
-                        <div class="payment-instruction-item"><span class="payment-instruction-channel">M-Pesa</span><span class="payment-instruction-arrow">-&gt;</span><span class="payment-instruction-target">WeBirr</span><span class="payment-instruction-arrow">-&gt;</span><span class="payment-instruction-target">Payment Code</span></div>
-                        <div class="payment-instruction-item"><span class="payment-instruction-channel">Coopay Ebirr</span><span class="payment-instruction-arrow">-&gt;</span><span class="payment-instruction-target">WeBirr</span><span class="payment-instruction-arrow">-&gt;</span><span class="payment-instruction-target">Payment Code</span></div>
+                        <div id="paymentInstructionItems"></div>
                     </div>
                     <div class="meta" id="statusMeta"></div>
                     <div class="button-row" id="statusActions" style="display: none;">
@@ -1279,6 +1325,7 @@ function render_page(): void {
         const statusMeta = document.getElementById('statusMeta');
         const paymentCodeTitle = document.getElementById('paymentCodeTitle');
         const paymentCode = document.getElementById('paymentCode');
+        const paymentInstructionItems = document.getElementById('paymentInstructionItems');
         const record = document.getElementById('record');
         const pendingReceipt = document.getElementById('pendingReceipt');
         const confirmationReceipt = document.getElementById('confirmationReceipt');
@@ -1314,6 +1361,7 @@ function render_page(): void {
             state.checkout = null;
             paymentCode.textContent = '';
             paymentCode.style.display = 'none';
+            paymentInstructionItems.innerHTML = '';
             record.style.display = 'none';
             actions.style.display = 'none';
             statusMeta.textContent = '';
@@ -1350,6 +1398,7 @@ function render_page(): void {
             paymentCodeTitle.style.display = 'block';
             paymentCode.textContent = response.paymentCode;
             paymentCode.style.display = 'block';
+            renderPaymentInstructions(response.supportedBanks || []);
             record.style.display = 'grid';
             document.getElementById('merchantReference').textContent = response.merchantReference;
             document.getElementById('paymentStatus').textContent = 'pending';
@@ -1428,6 +1477,47 @@ function render_page(): void {
             statusBox.className = 'status ' + (type || 'info');
             statusText.textContent = message;
             statusSpinner.style.display = spinning ? 'inline-block' : 'none';
+        }
+
+        function renderPaymentInstructions(banks) {
+            paymentInstructionItems.innerHTML = '';
+            if (!Array.isArray(banks) || banks.length === 0) {
+                const fallback = document.createElement('div');
+                fallback.className = 'payment-instruction-item payment-instruction-fallback';
+                fallback.textContent = 'Use a supported WeBirr banking or wallet app.';
+                paymentInstructionItems.appendChild(fallback);
+                return;
+            }
+
+            banks.forEach((bank) => {
+                const name = bank && (bank.name || bank.bankName || bank.bankID || bank.bankid);
+                if (!name) {
+                    return;
+                }
+
+                const item = document.createElement('div');
+                item.className = 'payment-instruction-item';
+                item.appendChild(instructionSpan('payment-instruction-channel', name));
+                item.appendChild(instructionSpan('payment-instruction-arrow', '->'));
+                item.appendChild(instructionSpan('payment-instruction-target', 'WeBirr'));
+                item.appendChild(instructionSpan('payment-instruction-arrow', '->'));
+                item.appendChild(instructionSpan('payment-instruction-target', 'Payment Code'));
+                paymentInstructionItems.appendChild(item);
+            });
+
+            if (paymentInstructionItems.children.length === 0) {
+                const fallback = document.createElement('div');
+                fallback.className = 'payment-instruction-item payment-instruction-fallback';
+                fallback.textContent = 'Use a supported WeBirr banking or wallet app.';
+                paymentInstructionItems.appendChild(fallback);
+            }
+        }
+
+        function instructionSpan(className, text) {
+            const span = document.createElement('span');
+            span.className = className;
+            span.textContent = text;
+            return span;
         }
 
         function showPendingReceipt() {
