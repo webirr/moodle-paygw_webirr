@@ -65,10 +65,8 @@ At a glance, the payment flow is:
 - The customer payment path is:
   `{Banking App} -> WeBirr menu -> Enter Payment Code -> Pay`.
 
-Current mobile apps integrated with WeBirr include CBE Mobile, CBE Birr, Awash
-Birr, Telebirr, M-Pesa, Coopay Ebirr, and other WeBirr-enabled banking or
-wallet apps. The checkout page shows only the subset configured for that
-merchant.
+The checkout page should not show a broad static banking or wallet list. It
+shows only the subset returned by WeBirr for the configured merchant.
 
 ### 3. Payment Status Monitoring
 

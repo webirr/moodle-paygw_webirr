@@ -98,10 +98,8 @@ The general customer path is:
 {Banking App} -> WeBirr -> Payment Code -> Pay
 ```
 
-Current mobile apps integrated with WeBirr include CBE Mobile, CBE Birr, Awash
-Birr, Telebirr, M-Pesa, Coopay Ebirr, and other WeBirr-enabled banking or
-wallet apps. The demo displays only the subset returned by WeBirr for the
-configured merchant.
+The demo should not show a broad static banking or wallet list. It displays
+only the subset returned by WeBirr for the configured merchant.
 
 After the customer pays, the demo checks WeBirr payment status from the server
 side and updates the checkout screen from pending to confirmed.

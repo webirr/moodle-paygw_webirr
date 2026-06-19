@@ -709,7 +709,8 @@ function json_response(array $payload, int $status = 200): void {
 function render_page(): void {
     $preview = (string)($_GET['preview'] ?? '');
     $defaultmerchantreference = default_merchant_reference();
-    $previewbanks = $preview === 'journey' ? supported_banks_preview() : [];
+    $previewbanks = in_array($preview, ['journey', 'confirmed'], true) ? supported_banks_preview() : [];
+    $previewissuer = trim((string)($previewbanks[0]['name'] ?? '')) ?: 'Supported WeBirr App';
     ?>
 <!doctype html>
 <html lang="en">
@@ -1202,7 +1203,7 @@ function render_page(): void {
                     </div>
                     <div class="webirr-success-row">
                         <span class="webirr-success-label">Paid Via</span>
-                        <span class="webirr-success-value">CBE Mobile</span>
+                        <span class="webirr-success-value"><?php echo htmlspecialchars($previewissuer, ENT_QUOTES, 'UTF-8'); ?></span>
                     </div>
                 </div>
                 <div class="webirr-success-continue">
@@ -1342,7 +1343,7 @@ function render_page(): void {
         if (new URLSearchParams(window.location.search).get('preview') === 'confirmed') {
             showConfirmedReceipt({
                 paymentReference: 'TX70e78862148f4c249606',
-                paymentIssuer: 'CBE Mobile'
+                paymentIssuer: <?php echo json_encode($previewissuer, JSON_UNESCAPED_SLASHES); ?>
             });
         }
 
