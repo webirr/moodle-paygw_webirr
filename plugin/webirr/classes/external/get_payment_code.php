@@ -498,6 +498,41 @@ class get_payment_code extends external_api {
             ];
         }
 
+        return self::sort_supported_banks($banks);
+    }
+
+    /**
+     * Sort known payment channels in the same order used by WeBirr checkout docs.
+     *
+     * Unknown future channels are still displayed after the known channels so the
+     * UI remains merchant-scoped without hiding server-supported banks.
+     *
+     * @param array[] $banks Supported bank rows with bankid/name fields.
+     * @return array[] Sorted supported bank rows.
+     */
+    private static function sort_supported_banks(array $banks): array {
+        $preferred = [
+            'cbe_mobile' => 10,
+            'cbe_birr' => 20,
+            'awash_birr' => 30,
+            'telebirr' => 40,
+            'm_pesa' => 50,
+            'coopay_ebirr' => 60,
+        ];
+
+        usort($banks, static function(array $left, array $right) use ($preferred): int {
+            $leftid = (string)($left['bankid'] ?? '');
+            $rightid = (string)($right['bankid'] ?? '');
+            $leftweight = $preferred[$leftid] ?? 1000;
+            $rightweight = $preferred[$rightid] ?? 1000;
+
+            if ($leftweight !== $rightweight) {
+                return $leftweight <=> $rightweight;
+            }
+
+            return strcasecmp((string)($left['name'] ?? ''), (string)($right['name'] ?? ''));
+        });
+
         return $banks;
     }
 

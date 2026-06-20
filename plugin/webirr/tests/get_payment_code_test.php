@@ -93,6 +93,60 @@ final class get_payment_code_test extends \advanced_testcase {
     }
 
     /**
+     * Supported banks should use the checkout display order used in WeBirr docs.
+     */
+    public function test_supported_banks_use_checkout_display_order(): void {
+        $this->resetAfterTest();
+        $user = $this->getDataGenerator()->create_user(['firstname' => 'Elias', 'lastname' => 'Haileselassie']);
+        $this->setUser($user);
+        $instanceid = $this->create_fee_enrolment_instance(530.00);
+
+        webirr_client::set_test_transport(function(
+            string $method,
+            string $url,
+            ?array $payload,
+            array $headers
+        ): array {
+            if (strpos($url, 'einvoice/api/banks') !== false) {
+                return [
+                    'status' => 200,
+                    'body' => '{"error":null,"res":[' .
+                        '{"bankID":"coopay_ebirr","name":"Coopay Ebirr"},' .
+                        '{"bankID":"m_pesa","name":"M-Pesa"},' .
+                        '{"bankID":"awash_birr","name":"Awash Birr"},' .
+                        '{"bankID":"cbe_birr","name":"CBE Birr"},' .
+                        '{"bankID":"telebirr","name":"Telebirr"},' .
+                        '{"bankID":"cbe_mobile","name":"CBE Mobile"}' .
+                        '],"errorCode":null}',
+                    'error' => '',
+                ];
+            }
+
+            if ($method === 'GET') {
+                return [
+                    'status' => 200,
+                    'body' => '{"error":"Bill not found","res":null,"errorCode":"ERROR_INVLAID_INPUT"}',
+                    'error' => '',
+                ];
+            }
+
+            return [
+                'status' => 200,
+                'body' => '{"error":null,"res":"123 456 789","errorCode":null}',
+                'error' => '',
+            ];
+        });
+
+        $response = get_payment_code::execute('enrol_fee', 'fee', $instanceid, 'moodle course enrollment');
+
+        $this->assertTrue($response['success']);
+        $this->assertSame(
+            ['cbe_mobile', 'cbe_birr', 'awash_birr', 'telebirr', 'm_pesa', 'coopay_ebirr'],
+            array_column($response['supportedbanks'], 'bankid')
+        );
+    }
+
+    /**
      * An existing local pending payment should be reused without a bill/status gateway call when payable details match.
      */
     public function test_existing_local_payment_is_reused_without_bill_gateway_call(): void {
