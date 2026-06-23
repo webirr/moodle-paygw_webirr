@@ -16,7 +16,7 @@ defined('MOODLE_INTERNAL') || die();
  */
 class webirr_client {
     /** @var string WeBirr TestEnv base URL. */
-    private const TEST_BASE_URL = 'https://api.webirr.net';
+    private const TEST_BASE_URL = 'https://api.webirr.dev';
 
     /** @var string WeBirr production base URL. */
     private const PROD_BASE_URL = 'https://api.webirr.net:8080';
@@ -52,8 +52,31 @@ class webirr_client {
     ) {
         $this->merchantid = trim($merchantid);
         $this->apikey = trim($apikey);
-        $this->baseurl = rtrim($baseurl ?: ($testmode ? self::TEST_BASE_URL : self::PROD_BASE_URL), '/');
+        $this->baseurl = $this->resolve_base_url($testmode, $baseurl);
         $this->transport = $transport ?? self::$testtransport;
+    }
+
+    /**
+     * Resolve the gateway base URL.
+     *
+     * Optional overrides are only honored in TestEnv so production remains
+     * fixed to the official WeBirr gateway.
+     *
+     * @param bool $testmode Whether to use WeBirr TestEnv.
+     * @param string|null $baseurl Optional base URL override used by tests only.
+     * @return string Gateway base URL without a trailing slash.
+     */
+    private function resolve_base_url(bool $testmode, ?string $baseurl): string {
+        if (!$testmode) {
+            return self::PROD_BASE_URL;
+        }
+
+        $gatewayurl = trim((string)($baseurl ?? getenv('GATEWAY_URL') ?: ''));
+        if ($gatewayurl !== '') {
+            return rtrim($gatewayurl, '/');
+        }
+
+        return self::TEST_BASE_URL;
     }
 
     /**

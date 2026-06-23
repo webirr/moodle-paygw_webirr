@@ -56,7 +56,7 @@ final class webirr_client_test extends \advanced_testcase {
         $this->assertSame('123 456 789', $response->res);
         $this->assertCount(1, $requests);
         $this->assertSame('POST', $requests[0]['method']);
-        $this->assertStringStartsWith('https://api.webirr.net/einvoice/api/bill?', $requests[0]['url']);
+        $this->assertStringStartsWith('https://api.webirr.dev/einvoice/api/bill?', $requests[0]['url']);
         $this->assertStringContainsString('api_key=api-key', $requests[0]['url']);
         $this->assertStringContainsString('merchant_id=merchant-from-client', $requests[0]['url']);
         $this->assertSame('merchant-from-client', $requests[0]['payload']['merchantID']);
@@ -113,6 +113,47 @@ final class webirr_client_test extends \advanced_testcase {
     }
 
     /**
+     * Local gateway overrides are allowed for TestEnv only.
+     */
+    public function test_gateway_url_override_applies_to_testmode_only(): void {
+        $previous = getenv('GATEWAY_URL');
+        putenv('GATEWAY_URL=https://local-gateway.example/');
+
+        try {
+            $requests = [];
+            $transport = function(string $method, string $url, ?array $payload, array $headers) use (&$requests): array {
+                $requests[] = [
+                    'method' => $method,
+                    'url' => $url,
+                    'payload' => $payload,
+                    'headers' => $headers,
+                ];
+
+                return [
+                    'status' => 200,
+                    'body' => '{"error":null,"res":{"status":0}}',
+                    'error' => '',
+                ];
+            };
+
+            $testclient = new webirr_client('merchant-from-client', 'api-key', true, $transport);
+            $testclient->get_payment_status('123 456 789');
+
+            $prodclient = new webirr_client('merchant-from-client', 'api-key', false, $transport);
+            $prodclient->get_payment_status('123 456 789');
+
+            $this->assertStringStartsWith('https://local-gateway.example/einvoice/api/paymentStatus?', $requests[0]['url']);
+            $this->assertStringStartsWith('https://api.webirr.net:8080/einvoice/api/paymentStatus?', $requests[1]['url']);
+        } finally {
+            if ($previous === false) {
+                putenv('GATEWAY_URL');
+            } else {
+                putenv('GATEWAY_URL=' . $previous);
+            }
+        }
+    }
+
+    /**
      * Payment status should use the canonical single-status endpoint.
      */
     public function test_get_payment_status_uses_canonical_endpoint(): void {
@@ -144,7 +185,7 @@ final class webirr_client_test extends \advanced_testcase {
         $this->assertCount(1, $requests);
         $this->assertSame('GET', $requests[0]['method']);
         $this->assertNull($requests[0]['payload']);
-        $this->assertStringStartsWith('https://api.webirr.net/einvoice/api/paymentStatus?', $requests[0]['url']);
+        $this->assertStringStartsWith('https://api.webirr.dev/einvoice/api/paymentStatus?', $requests[0]['url']);
         $this->assertStringContainsString('api_key=api-key', $requests[0]['url']);
         $this->assertStringContainsString('merchant_id=merchant-from-client', $requests[0]['url']);
         $this->assertStringContainsString('wbc_code=123%20456%20789', $requests[0]['url']);
@@ -183,7 +224,7 @@ final class webirr_client_test extends \advanced_testcase {
         $this->assertCount(1, $requests);
         $this->assertSame('GET', $requests[0]['method']);
         $this->assertNull($requests[0]['payload']);
-        $this->assertStringStartsWith('https://api.webirr.net/einvoice/api/banks?', $requests[0]['url']);
+        $this->assertStringStartsWith('https://api.webirr.dev/einvoice/api/banks?', $requests[0]['url']);
         $this->assertStringContainsString('api_key=api-key', $requests[0]['url']);
         $this->assertStringContainsString('merchant_id=merchant-from-client', $requests[0]['url']);
     }
@@ -229,7 +270,7 @@ final class webirr_client_test extends \advanced_testcase {
         $this->assertSame('OK', $response->res);
         $this->assertCount(1, $requests);
         $this->assertSame('PUT', $requests[0]['method']);
-        $this->assertStringStartsWith('https://api.webirr.net/einvoice/api/bill?', $requests[0]['url']);
+        $this->assertStringStartsWith('https://api.webirr.dev/einvoice/api/bill?', $requests[0]['url']);
         $this->assertStringContainsString('api_key=api-key', $requests[0]['url']);
         $this->assertStringContainsString('merchant_id=merchant-from-client', $requests[0]['url']);
         $this->assertSame('merchant-from-client', $requests[0]['payload']['merchantID']);
@@ -270,7 +311,7 @@ final class webirr_client_test extends \advanced_testcase {
         $this->assertCount(1, $requests);
         $this->assertSame('GET', $requests[0]['method']);
         $this->assertNull($requests[0]['payload']);
-        $this->assertStringStartsWith('https://api.webirr.net/einvoice/api/bill?', $requests[0]['url']);
+        $this->assertStringStartsWith('https://api.webirr.dev/einvoice/api/bill?', $requests[0]['url']);
         $this->assertStringContainsString('api_key=api-key', $requests[0]['url']);
         $this->assertStringContainsString('merchant_id=merchant-from-client', $requests[0]['url']);
         $this->assertStringContainsString('bill_reference=moodle_component_area_1_42_7', $requests[0]['url']);
@@ -308,7 +349,7 @@ final class webirr_client_test extends \advanced_testcase {
         $this->assertCount(1, $requests);
         $this->assertSame('GET', $requests[0]['method']);
         $this->assertNull($requests[0]['payload']);
-        $this->assertStringStartsWith('https://api.webirr.net/einvoice/api/bill?', $requests[0]['url']);
+        $this->assertStringStartsWith('https://api.webirr.dev/einvoice/api/bill?', $requests[0]['url']);
         $this->assertStringContainsString('api_key=api-key', $requests[0]['url']);
         $this->assertStringContainsString('merchant_id=merchant-from-client', $requests[0]['url']);
         $this->assertStringContainsString('wbc_code=123%20456%20789', $requests[0]['url']);
