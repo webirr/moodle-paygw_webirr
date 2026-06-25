@@ -71,69 +71,88 @@ if ($user) {
     update_internal_user_password($user, $password);
 }
 
-$course = $DB->get_record('course', ['shortname' => 'WEBIRR-CHECKOUT']);
-if (!$course) {
-    $course = create_course((object)[
-        'fullname' => 'WeBirr Online Checkout Test Course',
-        'shortname' => 'WEBIRR-CHECKOUT',
-        'category' => 1,
-        'visible' => 1,
-        'format' => 'topics',
-        'summary' => 'Demo course used to validate the WeBirr Moodle payment gateway checkout flow.',
-    ]);
-}
-
 $studentrole = $DB->get_record('role', ['shortname' => 'student'], '*', MUST_EXIST);
-$instance = $DB->get_record('enrol', ['courseid' => $course->id, 'enrol' => 'fee']);
-$now = time();
-$enroldata = (object)[
-    'enrol' => 'fee',
-    'status' => ENROL_INSTANCE_ENABLED,
-    'courseid' => $course->id,
-    'sortorder' => 0,
-    'name' => 'WeBirr Course Enrollment',
-    'enrolperiod' => 0,
-    'enrolstartdate' => 0,
-    'enrolenddate' => 0,
-    'expirynotify' => 0,
-    'expirythreshold' => 0,
-    'notifyall' => 0,
-    'password' => '',
-    'cost' => '530',
-    'currency' => 'ETB',
-    'roleid' => $studentrole->id,
-    'customint1' => $account->get('id'),
-    'customchar1' => 'moodle course enrollment',
-    'timemodified' => $now,
+$courses = [
+    ['shortname' => 'WEBIRR-CHECKOUT', 'fullname' => 'WeBirr Online Checkout Test Course', 'cost' => '530'],
+    ['shortname' => 'WEBIRR-PAYMENTS-101', 'fullname' => 'Payments 101', 'cost' => '610'],
+    ['shortname' => 'WEBIRR-MERCHANT-OPS', 'fullname' => 'Merchant Operations', 'cost' => '680'],
+    ['shortname' => 'WEBIRR-DIGITAL-COMMERCE', 'fullname' => 'Digital Commerce Basics', 'cost' => '720'],
+    ['shortname' => 'WEBIRR-CUSTOMER-SUPPORT', 'fullname' => 'Customer Support Essentials', 'cost' => '560'],
+    ['shortname' => 'WEBIRR-RECONCILIATION', 'fullname' => 'Payment Reconciliation', 'cost' => '750'],
+    ['shortname' => 'WEBIRR-BILLING', 'fullname' => 'Billing And Collections', 'cost' => '590'],
+    ['shortname' => 'WEBIRR-REPORTING', 'fullname' => 'Merchant Reporting', 'cost' => '640'],
+    ['shortname' => 'WEBIRR-RISK', 'fullname' => 'Payment Risk Basics', 'cost' => '700'],
+    ['shortname' => 'WEBIRR-INTEGRATION', 'fullname' => 'Gateway Integration Workshop', 'cost' => '780'],
 ];
-if ($instance) {
-    $enroldata->id = $instance->id;
-    $DB->update_record('enrol', $enroldata);
-    $enrolid = (int)$instance->id;
-} else {
-    $enroldata->timecreated = $now;
-    $enrolid = (int)$DB->insert_record('enrol', $enroldata);
-}
+$firstenrolid = 0;
+$now = time();
+foreach ($courses as $courseconfig) {
+    $course = $DB->get_record('course', ['shortname' => $courseconfig['shortname']]);
+    if (!$course) {
+        $course = create_course((object)[
+            'fullname' => $courseconfig['fullname'],
+            'shortname' => $courseconfig['shortname'],
+            'category' => 1,
+            'visible' => 1,
+            'format' => 'topics',
+            'summary' => 'Demo course used to validate the WeBirr Moodle payment gateway checkout flow.',
+        ]);
+    }
 
-$DB->delete_records('paygw_webirr_payments', [
-    'userid' => $userid,
-    'component' => 'enrol_fee',
-    'paymentarea' => 'fee',
-    'itemid' => $enrolid,
-]);
-$DB->delete_records('payments', [
-    'userid' => $userid,
-    'component' => 'enrol_fee',
-    'paymentarea' => 'fee',
-    'itemid' => $enrolid,
-]);
-foreach ($DB->get_records('user_enrolments', ['userid' => $userid, 'enrolid' => $enrolid]) as $enrolment) {
-    $DB->delete_records('user_enrolments', ['id' => $enrolment->id]);
-}
+    $instance = $DB->get_record('enrol', ['courseid' => $course->id, 'enrol' => 'fee']);
+    $enroldata = (object)[
+        'enrol' => 'fee',
+        'status' => ENROL_INSTANCE_ENABLED,
+        'courseid' => $course->id,
+        'sortorder' => 0,
+        'name' => 'WeBirr Course Enrollment',
+        'enrolperiod' => 0,
+        'enrolstartdate' => 0,
+        'enrolenddate' => 0,
+        'expirynotify' => 0,
+        'expirythreshold' => 0,
+        'notifyall' => 0,
+        'password' => '',
+        'cost' => $courseconfig['cost'],
+        'currency' => 'ETB',
+        'roleid' => $studentrole->id,
+        'customint1' => $account->get('id'),
+        'customchar1' => 'moodle course enrollment',
+        'timemodified' => $now,
+    ];
+    if ($instance) {
+        $enroldata->id = $instance->id;
+        $DB->update_record('enrol', $enroldata);
+        $enrolid = (int)$instance->id;
+    } else {
+        $enroldata->timecreated = $now;
+        $enrolid = (int)$DB->insert_record('enrol', $enroldata);
+    }
+    if ($firstenrolid === 0) {
+        $firstenrolid = $enrolid;
+    }
 
-rebuild_course_cache($course->id, true);
+    $DB->delete_records('paygw_webirr_payments', [
+        'userid' => $userid,
+        'component' => 'enrol_fee',
+        'paymentarea' => 'fee',
+        'itemid' => $enrolid,
+    ]);
+    $DB->delete_records('payments', [
+        'userid' => $userid,
+        'component' => 'enrol_fee',
+        'paymentarea' => 'fee',
+        'itemid' => $enrolid,
+    ]);
+    foreach ($DB->get_records('user_enrolments', ['userid' => $userid, 'enrolid' => $enrolid]) as $enrolment) {
+        $DB->delete_records('user_enrolments', ['id' => $enrolment->id]);
+    }
+
+    rebuild_course_cache($course->id, true);
+}
 
 echo "Seeded WeBirr Moodle checkout example.\n";
-echo "Course shortname: WEBIRR-CHECKOUT\n";
-echo "Fee enrolment id: {$enrolid}\n";
+echo "Course catalog count: " . count($courses) . "\n";
+echo "First course shortname: WEBIRR-CHECKOUT\n";
+echo "First fee enrolment id: {$firstenrolid}\n";
 echo "Demo username: {$username}\n";

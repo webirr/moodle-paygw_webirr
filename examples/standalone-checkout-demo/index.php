@@ -59,10 +59,18 @@ function handle_api(string $path): void {
 
 function create_bill(): void {
     $payload = read_json_payload();
-    $amount = format_amount((string)($payload['amount'] ?? '530.00'));
-    $customername = trim((string)($payload['customerName'] ?? 'Elias'));
+    $course = find_demo_course((string)($payload['courseId'] ?? ''));
+    if (!$course) {
+        json_response(['success' => false, 'error' => 'Choose a valid Moodle course.'], 400);
+    }
+
+    $amount = format_amount((string)$course['amount']);
+    $customername = trim((string)($payload['customerName'] ?? ''));
+    if ($customername === '') {
+        json_response(['success' => false, 'error' => 'Customer name is required.'], 400);
+    }
     $customerphone = trim((string)($payload['customerPhone'] ?? ''));
-    $description = trim((string)($payload['description'] ?? 'moodle course enrollment'));
+    $description = (string)$course['title'] . ' - moodle course enrollment';
     $merchantreference = normalize_merchant_reference((string)($payload['merchantReference'] ?? default_merchant_reference()));
     $billreference = build_demo_bill_reference($merchantreference);
     $detailshash = details_hash($customername, $amount, $description);
@@ -276,6 +284,9 @@ function payment_code_response(array $payment, string $operation, webirr_client 
         'billReference' => (string)$payment['bill_reference'],
         'merchantReference' => (string)$payment['merchant_reference'],
         'amount' => (string)$payment['amount'],
+        'customerName' => (string)$payment['customer_name'],
+        'description' => (string)$payment['description'],
+        'courseTitle' => item_title_from_description((string)$payment['description']),
         'status' => (int)$payment['status'],
         'operation' => $operation,
         'supportedBanks' => supported_banks_response($client),
@@ -432,7 +443,56 @@ function normalize_merchant_reference(string $merchantreference): string {
 }
 
 function default_merchant_reference(): string {
-    return 'pnr/' . date('Y/m/d') . '/72627836';
+    return 'ord_' . substr(str_replace('-', '', demo_uuid()), 0, 8);
+}
+
+function demo_uuid(): string {
+    try {
+        $bytes = random_bytes(16);
+    } catch (Exception $exception) {
+        $bytes = md5(uniqid('', true), true);
+    }
+
+    $hex = bin2hex($bytes);
+
+    return sprintf(
+        '%s-%s-%s-%s-%s',
+        substr($hex, 0, 8),
+        substr($hex, 8, 4),
+        substr($hex, 12, 4),
+        substr($hex, 16, 4),
+        substr($hex, 20, 12)
+    );
+}
+
+function demo_courses(): array {
+    return [
+        ['id' => 'course-001', 'title' => 'WeBirr Online Checkout Test Course', 'amount' => '530.00'],
+        ['id' => 'course-002', 'title' => 'Payments 101', 'amount' => '610.00'],
+        ['id' => 'course-003', 'title' => 'Merchant Operations', 'amount' => '680.00'],
+        ['id' => 'course-004', 'title' => 'Digital Commerce Basics', 'amount' => '720.00'],
+        ['id' => 'course-005', 'title' => 'Customer Support Essentials', 'amount' => '560.00'],
+        ['id' => 'course-006', 'title' => 'Payment Reconciliation', 'amount' => '750.00'],
+        ['id' => 'course-007', 'title' => 'Billing And Collections', 'amount' => '590.00'],
+        ['id' => 'course-008', 'title' => 'Merchant Reporting', 'amount' => '640.00'],
+        ['id' => 'course-009', 'title' => 'Payment Risk Basics', 'amount' => '700.00'],
+        ['id' => 'course-010', 'title' => 'Gateway Integration Workshop', 'amount' => '780.00'],
+    ];
+}
+
+function find_demo_course(string $courseid): ?array {
+    foreach (demo_courses() as $course) {
+        if ($course['id'] === $courseid) {
+            return $course;
+        }
+    }
+
+    return null;
+}
+
+function item_title_from_description(string $description): string {
+    $parts = explode(' - ', $description, 2);
+    return trim($parts[0]) !== '' ? trim($parts[0]) : 'Moodle Course';
 }
 
 function build_demo_bill_reference(string $merchantreference): string {
@@ -709,6 +769,7 @@ function json_response(array $payload, int $status = 200): void {
 function render_page(): void {
     $preview = (string)($_GET['preview'] ?? '');
     $defaultmerchantreference = default_merchant_reference();
+    $courses = demo_courses();
     $previewbanks = in_array($preview, ['journey', 'confirmed'], true) ? supported_banks_preview() : [];
     $previewissuer = trim((string)($previewbanks[0]['name'] ?? '')) ?: 'Supported WeBirr App';
     ?>
@@ -898,6 +959,46 @@ function render_page(): void {
             font: inherit;
             font-weight: 600;
             text-decoration: none;
+        }
+        a.primary {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 40px;
+            border-radius: 6px;
+            padding: 9px 14px;
+            background: var(--primary);
+            color: white;
+            font: inherit;
+            font-weight: 600;
+            text-decoration: none;
+        }
+        a.primary:hover {
+            background: var(--primary-dark);
+        }
+        .course-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 14px;
+            margin-top: 18px;
+        }
+        .course-card {
+            display: grid;
+            gap: 14px;
+            align-content: space-between;
+            min-height: 210px;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            padding: 16px;
+            background: white;
+        }
+        .course-card h2 {
+            margin: 0 0 8px;
+            font-size: 18px;
+        }
+        .course-card p {
+            margin: 0 0 10px;
+            color: var(--muted);
         }
         .payment-code {
             display: none;
@@ -1139,10 +1240,12 @@ function render_page(): void {
         <?php if ($preview === 'journey') { ?>
         <div class="journey-layout">
             <section class="panel journey-panel">
-                <div class="panel-title">Demo Data Entry</div>
+                <div class="panel-title">Course Catalog</div>
                 <dl class="summary">
                     <dt>Customer</dt>
                     <dd>Elias</dd>
+                    <dt>Course</dt>
+                    <dd>WeBirr Online Checkout Test Course</dd>
                     <dt>Amount</dt>
                     <dd>530.00 ETB</dd>
                     <dt>Description</dt>
@@ -1160,6 +1263,8 @@ function render_page(): void {
                 <dl class="summary">
                     <dt>Customer</dt>
                     <dd>Elias</dd>
+                    <dt>Course</dt>
+                    <dd>WeBirr Online Checkout Test Course</dd>
                     <dt>Amount</dt>
                     <dd>530.00 ETB</dd>
                     <dt>Description</dt>
@@ -1198,6 +1303,14 @@ function render_page(): void {
                     <div class="webirr-success-check" aria-hidden="true">&#10003;</div>
                     <h3>Payment Confirmed</h3>
                     <div class="webirr-success-row">
+                        <span class="webirr-success-label">Customer</span>
+                        <span class="webirr-success-value">Elias</span>
+                    </div>
+                    <div class="webirr-success-row">
+                        <span class="webirr-success-label">Amount</span>
+                        <span class="webirr-success-value">530.00 ETB</span>
+                    </div>
+                    <div class="webirr-success-row">
                         <span class="webirr-success-label">Payment Reference</span>
                         <span class="webirr-success-value">TX70e78862148f4c249606</span>
                     </div>
@@ -1214,26 +1327,29 @@ function render_page(): void {
         <?php } else { ?>
         <div class="checkout-stage">
             <section class="panel stage-panel" id="entryPanel">
-                <div class="panel-title">Demo Data Entry</div>
+                <div class="panel-title">Course Catalog</div>
                 <div class="field">
                     <label for="customerName">Customer</label>
                     <input id="customerName" value="Elias" autocomplete="name">
                 </div>
-                <div class="field">
-                    <label for="amount">Amount</label>
-                    <input id="amount" value="530.00" inputmode="decimal">
-                </div>
-                <div class="field">
-                    <label for="description">Description</label>
-                    <input id="description" value="moodle course enrollment">
-                </div>
-                <div class="field">
-                    <label for="merchantReferenceInput">Merchant Reference</label>
-                    <input id="merchantReferenceInput" value="<?php echo htmlspecialchars($defaultmerchantreference, ENT_QUOTES, 'UTF-8'); ?>">
-                    <div class="field-hint">This is the stable payable reference used for retry and recovery.</div>
-                </div>
-                <div class="button-row">
-                    <button class="primary" id="continueCheckout" type="button">Continue</button>
+                <div class="course-grid">
+                    <?php foreach ($courses as $course): ?>
+                        <article class="course-card">
+                            <div>
+                                <h2><?php echo htmlspecialchars((string)$course['title'], ENT_QUOTES, 'UTF-8'); ?></h2>
+                                <p>moodle course enrollment</p>
+                                <strong><?php echo htmlspecialchars((string)$course['amount'], ENT_QUOTES, 'UTF-8'); ?> ETB</strong>
+                            </div>
+                            <button
+                                class="primary"
+                                type="button"
+                                data-action="enroll"
+                                data-course-id="<?php echo htmlspecialchars((string)$course['id'], ENT_QUOTES, 'UTF-8'); ?>"
+                                data-course-title="<?php echo htmlspecialchars((string)$course['title'], ENT_QUOTES, 'UTF-8'); ?>"
+                                data-course-amount="<?php echo htmlspecialchars((string)$course['amount'], ENT_QUOTES, 'UTF-8'); ?>"
+                            >Enroll</button>
+                        </article>
+                    <?php endforeach; ?>
                 </div>
             </section>
 
@@ -1242,6 +1358,8 @@ function render_page(): void {
                 <dl class="summary">
                     <dt>Customer</dt>
                     <dd id="reviewCustomer"></dd>
+                    <dt>Course</dt>
+                    <dd id="reviewCourse"></dd>
                     <dt>Amount</dt>
                     <dd id="reviewAmount"></dd>
                     <dt>Description</dt>
@@ -1250,7 +1368,7 @@ function render_page(): void {
                     <dd id="reviewMerchantReference"></dd>
                 </dl>
                 <div class="button-row">
-                    <button class="primary" id="createBill" type="button">Checkout</button>
+                    <button class="primary" id="createBill" type="button">Enroll</button>
                     <button class="secondary" id="backToEntry" type="button">Back</button>
                     <button class="secondary" id="cancelCheckout" type="button">Cancel</button>
                 </div>
@@ -1275,6 +1393,8 @@ function render_page(): void {
                     <dl class="record" id="record" style="display: none;">
                         <dt>Merchant reference</dt>
                         <dd id="merchantReference"></dd>
+                        <dt>Course</dt>
+                        <dd id="paymentCourse"></dd>
                         <dt>Payment Status</dt>
                         <dd id="paymentStatus">pending</dd>
                     </dl>
@@ -1287,6 +1407,14 @@ function render_page(): void {
                     <div class="webirr-success-check" aria-hidden="true">&#10003;</div>
                     <h3>Payment Confirmed</h3>
                     <div class="webirr-success-row">
+                        <span class="webirr-success-label">Customer</span>
+                        <span class="webirr-success-value" id="confirmationCustomer"></span>
+                    </div>
+                    <div class="webirr-success-row">
+                        <span class="webirr-success-label">Amount</span>
+                        <span class="webirr-success-value" id="confirmationAmount"></span>
+                    </div>
+                    <div class="webirr-success-row">
                         <span class="webirr-success-label">Payment Reference</span>
                         <span class="webirr-success-value" id="confirmationPaymentReference"></span>
                     </div>
@@ -1296,6 +1424,7 @@ function render_page(): void {
                     </div>
                 </div>
                 <div class="webirr-success-continue">
+                    <a class="primary" href="#" id="downloadReceipt" download="webirr-course-enrollment-receipt.txt">Download receipt</a>
                     <button class="primary" id="startOver" type="button">Continue</button>
                 </div>
             </section>
@@ -1307,13 +1436,15 @@ function render_page(): void {
         const state = {
             paymentId: null,
             timer: null,
-            checkout: null
+            checkout: null,
+            selectedCourse: null,
+            merchantReference: '',
+            paymentCode: ''
         };
         const delayMs = 5000;
         const entryPanel = document.getElementById('entryPanel');
         const reviewPanel = document.getElementById('reviewPanel');
         const paymentPanel = document.getElementById('paymentPanel');
-        const continueButton = document.getElementById('continueCheckout');
         const createButton = document.getElementById('createBill');
         const backButton = document.getElementById('backToEntry');
         const cancelButton = document.getElementById('cancelCheckout');
@@ -1332,13 +1463,18 @@ function render_page(): void {
         const confirmationReceipt = document.getElementById('confirmationReceipt');
         const confirmationPaymentReference = document.getElementById('confirmationPaymentReference');
         const confirmationPaymentIssuer = document.getElementById('confirmationPaymentIssuer');
+        const confirmationCustomer = document.getElementById('confirmationCustomer');
+        const confirmationAmount = document.getElementById('confirmationAmount');
+        const downloadReceipt = document.getElementById('downloadReceipt');
 
-        continueButton.addEventListener('click', showReview);
         createButton.addEventListener('click', createBill);
         backButton.addEventListener('click', showEntry);
         cancelButton.addEventListener('click', showEntry);
         startOverButton.addEventListener('click', showEntry);
         refreshButton.addEventListener('click', () => checkStatus(false));
+        document.querySelectorAll('[data-action="enroll"]').forEach((button) => {
+            button.addEventListener('click', () => showReview(button));
+        });
 
         if (new URLSearchParams(window.location.search).get('preview') === 'confirmed') {
             showConfirmedReceipt({
@@ -1347,9 +1483,22 @@ function render_page(): void {
             });
         }
 
-        function showReview() {
+        function showReview(button) {
+            const customerName = document.getElementById('customerName').value.trim();
+            if (!customerName) {
+                alert('Customer name is required.');
+                document.getElementById('customerName').focus();
+                return;
+            }
+            state.selectedCourse = {
+                id: button.getAttribute('data-course-id') || '',
+                title: button.getAttribute('data-course-title') || '',
+                amount: button.getAttribute('data-course-amount') || ''
+            };
+            state.merchantReference = newMerchantReference();
             state.checkout = collectCheckoutInput();
             document.getElementById('reviewCustomer').textContent = state.checkout.customerName;
+            document.getElementById('reviewCourse').textContent = state.checkout.courseTitle;
             document.getElementById('reviewAmount').textContent = state.checkout.amount + ' ETB';
             document.getElementById('reviewDescription').textContent = state.checkout.description;
             document.getElementById('reviewMerchantReference').textContent = state.checkout.merchantReference;
@@ -1360,6 +1509,9 @@ function render_page(): void {
             window.clearTimeout(state.timer);
             state.paymentId = null;
             state.checkout = null;
+            state.selectedCourse = null;
+            state.merchantReference = '';
+            state.paymentCode = '';
             paymentCode.textContent = '';
             paymentCode.style.display = 'none';
             paymentInstructionItems.innerHTML = '';
@@ -1372,12 +1524,14 @@ function render_page(): void {
         }
 
         function collectCheckoutInput() {
-            const customerName = document.getElementById('customerName').value.trim() || 'Elias';
-            const amount = document.getElementById('amount').value.trim() || '530.00';
-            const description = document.getElementById('description').value.trim() || 'moodle course enrollment';
-            const merchantReference = document.getElementById('merchantReferenceInput').value.trim() || '<?php echo htmlspecialchars($defaultmerchantreference, ENT_QUOTES, 'UTF-8'); ?>';
+            const customerName = document.getElementById('customerName').value.trim();
+            const amount = state.selectedCourse ? state.selectedCourse.amount : '530.00';
+            const courseTitle = state.selectedCourse ? state.selectedCourse.title : 'Moodle Course';
+            const description = courseTitle + ' - moodle course enrollment';
+            const merchantReference = state.merchantReference || newMerchantReference();
+            const courseId = state.selectedCourse ? state.selectedCourse.id : '';
 
-            return {customerName, amount, description, merchantReference};
+            return {customerName, amount, description, merchantReference, courseTitle, courseId};
         }
 
         async function createBill() {
@@ -1396,12 +1550,21 @@ function render_page(): void {
             }
 
             state.paymentId = response.paymentId;
+            state.paymentCode = response.paymentCode;
+            state.checkout = Object.assign({}, state.checkout || {}, {
+                customerName: response.customerName || (state.checkout ? state.checkout.customerName : ''),
+                amount: response.amount || (state.checkout ? state.checkout.amount : ''),
+                description: response.description || (state.checkout ? state.checkout.description : ''),
+                courseTitle: response.courseTitle || (state.checkout ? state.checkout.courseTitle : ''),
+                merchantReference: response.merchantReference || (state.checkout ? state.checkout.merchantReference : '')
+            });
             paymentCodeTitle.style.display = 'block';
             paymentCode.textContent = response.paymentCode;
             paymentCode.style.display = 'block';
             renderPaymentInstructions(response.supportedBanks || []);
             record.style.display = 'grid';
             document.getElementById('merchantReference').textContent = response.merchantReference;
+            document.getElementById('paymentCourse').textContent = state.checkout.courseTitle;
             document.getElementById('paymentStatus').textContent = 'pending';
             showPendingReceipt();
             setBusy(false);
@@ -1465,7 +1628,6 @@ function render_page(): void {
 
         function setBusy(disabled) {
             createButton.disabled = disabled;
-            continueButton.disabled = disabled;
             backButton.disabled = disabled;
             cancelButton.disabled = disabled;
         }
@@ -1526,6 +1688,8 @@ function render_page(): void {
             pendingReceipt.style.display = 'block';
             confirmationPaymentReference.textContent = '';
             confirmationPaymentIssuer.textContent = '';
+            confirmationCustomer.textContent = '';
+            confirmationAmount.textContent = '';
         }
 
         function showConfirmedReceipt(response) {
@@ -1533,6 +1697,31 @@ function render_page(): void {
             showScreen('confirmation');
             confirmationPaymentReference.textContent = response.paymentReference || '';
             confirmationPaymentIssuer.textContent = response.paymentIssuer || '';
+            confirmationCustomer.textContent = state.checkout ? state.checkout.customerName : 'Elias';
+            confirmationAmount.textContent = state.checkout ? state.checkout.amount + ' ETB' : '530.00 ETB';
+            configureReceipt(response);
+        }
+
+        function configureReceipt(response) {
+            const checkout = state.checkout || {};
+            const lines = [
+                'WeBirr Online Checkout Demo',
+                '----------------------------',
+                'Course Enrollment Receipt',
+                '',
+                'Customer Name: ' + (checkout.customerName || ''),
+                'Course Title: ' + (checkout.courseTitle || ''),
+                'Amount: ' + (checkout.amount || '') + ' ETB',
+                'Merchant Reference: ' + (checkout.merchantReference || ''),
+                'WeBirr Payment Code: ' + (state.paymentCode || ''),
+                'Payment Reference: ' + (response.paymentReference || ''),
+                'Paid Via: ' + (response.paymentIssuer || ''),
+                'Enrollment Status: Enrolled',
+                ''
+            ];
+            const filenameReference = checkout.merchantReference || 'webirr-course';
+            downloadReceipt.href = 'data:text/plain;charset=utf-8,' + encodeURIComponent(lines.join('\n'));
+            downloadReceipt.download = filenameReference + '-enrollment-receipt.txt';
         }
 
         function showScreen(screen) {
@@ -1540,6 +1729,11 @@ function render_page(): void {
             reviewPanel.hidden = screen !== 'review';
             paymentPanel.hidden = screen !== 'payment';
             confirmationReceipt.hidden = screen !== 'confirmation';
+        }
+
+        function newMerchantReference() {
+            const random = Math.floor(Math.random() * 0xffffffff).toString(16).padStart(8, '0');
+            return 'ord_' + random;
         }
 
         function statusLabel(status) {

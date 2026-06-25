@@ -135,15 +135,18 @@ instructions are available on the WeBirr
 ### Moodle Checkout Example Site
 
 `examples/moodle-checkout-site` is reserved for a real Moodle demo environment
-that installs `plugin/webirr` and validates the plugin flow inside Moodle. This
-is the right place for Docker setup, seed data, and future screenshot capture
-automation.
+that installs `plugin/webirr`, seeds 10 paid-enrolment courses, and validates
+the plugin flow inside Moodle. This is the right place for Docker setup, seed
+data, and future screenshot capture automation.
 
 ### Standalone Checkout Demo
 
 `examples/standalone-checkout-demo` is a standalone PHP demo app. It shares the
 actual plugin client in `plugin/webirr/classes/local/webirr_client.php`, but it
-has its own HTML, CSS, JavaScript, demo API routes, and SQLite demo storage.
+has its own HTML, CSS, JavaScript, demo API routes, and SQLite demo storage. It
+uses a simple course catalog, customer entry, payment-code display, payment
+confirmation, and a text enrollment receipt to show the online checkout pattern
+without a Moodle install.
 
 Run it with TestEnv credentials:
 

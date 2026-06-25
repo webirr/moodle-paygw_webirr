@@ -62,8 +62,10 @@ webirrstudent
 
 The script uses this directory's `docker-compose.yml`, installs Moodle into
 `.runtime/`, configures the payment account with the TestEnv merchant
-credentials, creates a paid-enrolment test course, and mounts the plugin from
-`../../plugin/webirr`.
+credentials, creates 10 paid-enrolment demo courses, and mounts the plugin from
+`../../plugin/webirr`. The default URL opens the first course,
+`WEBIRR-CHECKOUT`, and the other seeded courses can be opened from Moodle's
+course list for broader visual checks.
 
 ## Checkout Flow
 

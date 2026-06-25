@@ -57,13 +57,15 @@ Open `http://127.0.0.1:8096/`.
 
 ## Checkout Flow
 
-### 1. Demo Data Entry
+### 1. Course Catalog
 
-The first screen starts with editable default demo values: customer, amount,
-description, and merchant reference. The merchant reference is the stable
-payable reference used by the demo for retry and recovery.
+The first screen shows a small course catalog. The customer name defaults to
+`Elias` and can be edited, but it cannot be empty. The learner chooses a course
+with **Enroll**. The course amount and description come from the server-side
+catalog, and the demo creates a short `ord_` merchant reference for the local
+checkout record.
 
-![Demo data entry](screenshots/standalone-demo-01-data-entry.png)
+![Course catalog](screenshots/standalone-demo-01-data-entry.png)
 
 ### 2. Checkout Review
 
@@ -83,7 +85,8 @@ the local demo server, and the local server calls WeBirr.
 ### 4. Payment Confirmation
 
 After payment is received, the screen changes to the confirmation view and shows
-the payment reference and the channel used to pay.
+the customer, amount, payment reference, and channel used to pay. The demo also
+offers a small text receipt to imitate course enrollment delivery.
 
 ![Payment confirmation](screenshots/standalone-demo-04-payment-confirmed.png)
 
