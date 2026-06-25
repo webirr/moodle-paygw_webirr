@@ -321,11 +321,14 @@ function supported_banks_response(webirr_client $client): array {
 }
 
 function supported_banks_preview(): array {
-    try {
-        return supported_banks_response(create_webirr_client());
-    } catch (Throwable $throwable) {
-        return [];
-    }
+    return [
+        ['name' => 'CBE Mobile'],
+        ['name' => 'CBE Birr'],
+        ['name' => 'Awash Birr'],
+        ['name' => 'Telebirr'],
+        ['name' => 'M-Pesa'],
+        ['name' => 'Coopay Ebirr'],
+    ];
 }
 
 function render_payment_instruction_items(array $banks): void {
