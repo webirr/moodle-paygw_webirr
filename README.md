@@ -1,9 +1,14 @@
 # WeBirr Moodle Plugin
 
-![WeBirr Online Checkout flow](screenshots/webirr-online-checkout-journey.jpg)
+![WeBirr Moodle course-catalog checkout flow](examples/standalone-checkout-demo/screenshots/standalone-demo-journey-four-steps.png)
 
 This repository contains the WeBirr Moodle payment gateway plugin plus two
 clearly separated example areas.
+
+The opener shows the same catalog-first online checkout story used across the
+WeBirr checkout examples: course selection, checkout review, WeBirr Payment
+Code display, and payment confirmation. The Moodle checkout example site below
+shows the actual Moodle plugin running inside Moodle's payment subsystem.
 
 ## Repository Layout
 
@@ -131,6 +136,15 @@ instructions are available on the WeBirr
 [How to Pay](https://webirr.com/instructions/all.html) page.
 
 ## Examples
+
+### Standard Course-Catalog Flow
+
+This is the visual checkout story shared with the WeBirr checkout-kit examples.
+It uses the standalone Moodle demo so the course catalog, review, payment-code,
+and confirmation states can be compared directly with the Go and JavaScript
+checkout-kit examples.
+
+![WeBirr Moodle course-catalog checkout flow](examples/standalone-checkout-demo/screenshots/standalone-demo-journey-four-steps.png)
 
 ### Moodle Checkout Example Site
 

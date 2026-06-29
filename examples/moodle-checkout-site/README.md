@@ -1,7 +1,14 @@
 # Moodle Checkout Example Site
 
+![WeBirr Moodle course-catalog checkout flow](../standalone-checkout-demo/screenshots/standalone-demo-journey-four-steps.png)
+
 This Docker example runs a real Moodle site with the WeBirr payment gateway
 plugin mounted from this repository.
+
+The opener shows the shared WeBirr course-catalog checkout story used across
+the checkout examples: course selection, checkout review, WeBirr Payment Code
+display, and payment confirmation. The screenshots below show the actual Moodle
+plugin running inside Moodle's payment subsystem.
 
 The example uses the actual plugin source:
 
