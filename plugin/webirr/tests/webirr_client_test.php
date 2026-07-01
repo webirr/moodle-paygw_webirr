@@ -356,9 +356,9 @@ final class webirr_client_test extends \advanced_testcase {
     }
 
     /**
-     * HTTP and JSON errors should be normalized to the gateway response shape.
+     * HTTP and JSON errors should use the native platform error channel.
      */
-    public function test_transport_errors_are_normalized(): void {
+    public function test_platform_errors_throw(): void {
         $client = new webirr_client(
             'merchant-from-client',
             'api-key',
@@ -372,9 +372,9 @@ final class webirr_client_test extends \advanced_testcase {
             }
         );
 
-        $response = $client->get_payment_status('123 456 789');
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('http error 500');
 
-        $this->assertSame('http error 500', $response->error);
-        $this->assertNull($response->res);
+        $client->get_payment_status('123 456 789');
     }
 }

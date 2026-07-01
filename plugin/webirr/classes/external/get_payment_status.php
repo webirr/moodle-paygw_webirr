@@ -31,6 +31,24 @@ class get_payment_status extends external_api {
      * @return array
      */
     public static function execute($paymentid) {
+        try {
+            return self::execute_inner($paymentid);
+        } catch (\RuntimeException $exception) {
+            debugging('WeBirr gateway platform failure: ' . $exception->getMessage(), DEBUG_DEVELOPER);
+            return [
+                'success' => false,
+                'error' => get_string('gatewaynotavailable', 'paygw_webirr')
+            ];
+        }
+    }
+
+    /**
+     * Checks the status of a WeBirr payment.
+     *
+     * @param int $paymentid The payment record ID
+     * @return array
+     */
+    private static function execute_inner($paymentid) {
         global $USER, $DB;
         
         $params = self::validate_parameters(self::execute_parameters(), [

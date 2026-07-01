@@ -37,6 +37,27 @@ class get_payment_code extends external_api {
      * @return array
      */
     public static function execute($component, $paymentarea, $itemid, $description) {
+        try {
+            return self::execute_inner($component, $paymentarea, $itemid, $description);
+        } catch (\RuntimeException $exception) {
+            debugging('WeBirr gateway platform failure: ' . $exception->getMessage(), DEBUG_DEVELOPER);
+            return [
+                'success' => false,
+                'error' => get_string('gatewaynotavailable', 'paygw_webirr')
+            ];
+        }
+    }
+
+    /**
+     * Creates a WeBirr payment code.
+     *
+     * @param string $component Component
+     * @param string $paymentarea Payment area in the component
+     * @param int $itemid An identifier for payment area in the component
+     * @param string $description Description of the payment
+     * @return array
+     */
+    private static function execute_inner($component, $paymentarea, $itemid, $description) {
         global $USER, $DB;
         
         $params = self::validate_parameters(self::execute_parameters(), [
@@ -475,7 +496,13 @@ class get_payment_code extends external_api {
      * @return array[] Supported bank rows with bankid/name fields.
      */
     private static function supported_banks_response(webirr_client $client): array {
-        $response = $client->get_supported_banks();
+        try {
+            $response = $client->get_supported_banks();
+        } catch (\RuntimeException $exception) {
+            debugging('WeBirr supported banks unavailable: ' . $exception->getMessage(), DEBUG_DEVELOPER);
+            return [];
+        }
+
         if (!empty($response->error) || !isset($response->res) || !is_array($response->res)) {
             return [];
         }

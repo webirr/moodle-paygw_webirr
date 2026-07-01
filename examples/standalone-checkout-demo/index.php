@@ -53,7 +53,8 @@ function handle_api(string $path): void {
 
         json_response(['success' => false, 'error' => 'Unknown endpoint'], 404);
     } catch (Throwable $throwable) {
-        json_response(['success' => false, 'error' => $throwable->getMessage()], 500);
+        error_log('WeBirr standalone demo gateway failure: ' . $throwable->getMessage());
+        json_response(['success' => false, 'error' => 'WeBirr gateway is not available.'], 500);
     }
 }
 
@@ -294,7 +295,13 @@ function payment_code_response(array $payment, string $operation, webirr_client 
 }
 
 function supported_banks_response(webirr_client $client): array {
-    $response = $client->get_supported_banks();
+    try {
+        $response = $client->get_supported_banks();
+    } catch (Throwable $throwable) {
+        error_log('WeBirr standalone demo supported banks unavailable: ' . $throwable->getMessage());
+        return [];
+    }
+
     if (!empty($response->error) || !isset($response->res) || !is_array($response->res)) {
         return [];
     }

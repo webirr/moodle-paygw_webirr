@@ -376,7 +376,7 @@ final class get_payment_code_test extends \advanced_testcase {
         $response = get_payment_code::execute('enrol_fee', 'fee', $instanceid, 'moodle course enrollment');
 
         $this->assertFalse($response['success']);
-        $this->assertSame('http error 500', $response['error']);
+        $this->assertSame(get_string('gatewaynotavailable', 'paygw_webirr'), $response['error']);
         $this->assertCount(1, $requests);
         $this->assertSame('GET', $requests[0]['method']);
     }

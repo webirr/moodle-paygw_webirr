@@ -302,31 +302,18 @@ class webirr_client {
         }
 
         if ($transporterror !== '') {
-            return $this->error_response($transporterror);
+            throw new \RuntimeException($transporterror);
         }
 
         if ($status < 200 || $status >= 300) {
-            return $this->error_response('http error ' . $status);
+            throw new \RuntimeException('http error ' . $status);
         }
 
         $decoded = json_decode((string)$body);
         if (json_last_error() !== JSON_ERROR_NONE || !is_object($decoded)) {
-            return $this->error_response('invalid response from WeBirr');
+            throw new \RuntimeException('invalid response from WeBirr');
         }
 
         return $decoded;
-    }
-
-    /**
-     * Create a gateway-style error response.
-     *
-     * @param string $message Error message.
-     * @return \stdClass Error response.
-     */
-    private function error_response(string $message): \stdClass {
-        return (object)[
-            'error' => $message,
-            'res' => null,
-        ];
     }
 }
